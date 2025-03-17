@@ -3,8 +3,13 @@
 int main() {
     Server server(4242);
 
-    server.init();
-    server.run();
-    server.stop();
+    try {
+      server.init();
+      server.run();
+      server.stop();
+    } catch (std::exception &e) {
+      std::cerr << e.what() << std::endl;
+    }
     return 0;
+
 }
