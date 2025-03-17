@@ -44,5 +44,10 @@ void Server::addClient(std::shared_ptr<Client> client)
 
 void Server::removeClient(std::shared_ptr<Client> client)
 {
-  _clients.erase(std::remove(_clients.begin(), _clients.end(), client), _clients.end());
+  for (auto it = _clients.begin(); it != _clients.end(); it++) {
+    if (*it == client) {
+      _clients.erase(it);
+      break;
+    }
+  }
 }
