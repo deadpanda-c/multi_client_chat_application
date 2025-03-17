@@ -4,17 +4,31 @@
 #include <vector>
 #include <memory>
 #include <string>
-// network lib
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-
+#include <sys/select.h>
 
 #include "Client.hpp"
 
+#define MAX_CLIENTS 10
+#define MAX_BUFFER_SIZE 1024
+#define SOCKET_CREATION_FAILED "Failed to create socket"
+#define SOCKET_BIND_FAILED "Failed to bind socket"
+
 class Server {
 public:
+    class ServerException : public std::exception {
+    public:
+        ServerException(const std::string& message) : _message(message) {}
+        const char* what() const noexcept override {
+            return _message.c_str();
+        }
+    private:
+        std::string _message;
+    };
+
     Server();
     Server(unsigned int port);
     ~Server();
