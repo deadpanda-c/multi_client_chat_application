@@ -6,6 +6,11 @@
 #include <netinet/in.h>
 #include <memory>
 #include <exception>
+#include <arpa/inet.h>
+
+#define MAX_MSG_SIZE 1024
+#define SOCKET_ERROR "Failed to create socket"
+#define CONNECT_FAILED "Failed to connect to server"
 
 class Client
 {
@@ -23,7 +28,7 @@ class Client
     ~Client();
 
     void init(const std::string& ip, unsigned short port);
-    void connect();
+    void run();
     void send(const std::string& msg);
     std::string receive();
     void close();
@@ -33,4 +38,8 @@ class Client
     int _fd;
     unsigned short _port;
     std::string _ip;
+    struct sockaddr_in _addr;
+    struct sockaddr_in _serv_addr;
+    bool _connected;
+
 };
