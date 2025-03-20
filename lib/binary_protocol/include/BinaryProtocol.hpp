@@ -5,11 +5,13 @@
 #include <vector>
 #include <bitset>
 
+#define SIMPLE_MESSAGE "00000000"
+#define COMMAND_MESSAGE "00000001"
+
 class BinaryProtocol {
   public:
-    static std::string encode(const std::string &message)
+    static std::string encode(const std::string &message, const std::string &header)
     {
-      std::string header = "00000000";
       std::string size = std::bitset<32>(message.size()).to_string();
       std::string payload = "";
 
@@ -17,6 +19,7 @@ class BinaryProtocol {
         payload += std::bitset<8>(c).to_string();
       return header + size + payload;
     }
+
     static std::string decode(const std::string &message)
     {
       std::string header = message.substr(0, 8);
@@ -28,5 +31,11 @@ class BinaryProtocol {
         payload += static_cast<char>(std::bitset<8>(byte).to_ulong());
       }
       return payload;
+    }
+
+    // get the header of the message to detect the type of the message
+    static std::string getHeader(const std::string &message)
+    {
+      return message.substr(0, 8);
     }
 };
