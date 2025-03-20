@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <cstring>
 #include <arpa/inet.h>
 #include <sys/select.h>
 
@@ -20,52 +21,54 @@
 #define SERVER_NOT_RUNNING "Server is not running"
 #define INVALID_CLIENT_FD "Invalid client file descriptor"
 #define SOCKET_FD_IN_CLIENTS "Socket file descriptor in client"
+#define SOCKET_OPT_FAILED "Failed to set socket options"
 
 class Server {
-public:
-    class ServerException : public std::exception {
-    public:
-        ServerException(const std::string& message) : _message(message) {}
-        const char* what() const noexcept override {
-            return _message.c_str();
-        }
-    private:
-        std::string _message;
-    };
+  public:
+      class ServerException : public std::exception {
+      public:
+          ServerException(const std::string& message) : _message(message) {}
+          const char* what() const noexcept override {
+              return _message.c_str();
+          }
+      private:
+          std::string _message;
+      };
 
-    Server();
-    Server(unsigned short port);
-    ~Server();
+      Server();
+      Server(unsigned short port);
+      ~Server();
 
-    void init();
-    void run();
-    void stop();
+      void init();
+      void run();
+      void stop();
 
-    void readFromClients();
-    void writeToClients();
+      void readFromClients();
+      void writeToClients();
 
-    void addClient(int client);
-    void removeClient(int client);
+      void addClient(int client);
+      void removeClient(int client);
 
-    void broadcast(const std::string& message);
+      void broadcast(const std::string& message);
 
-private:
-    void _initFdSets();
+  private:
+      void _initFdSets();
 
-    std::vector<int> _clients;
-    int _socket;
-    int _maxClients;
-    unsigned short _port;
-    int _serverSocket;
-    size_t _maxFd;
+      std::vector<int> _clients;
+      int _socket;
+      int _maxClients;
+      int _serverSocket;
+      int _opt;
+      unsigned short _port;
+      size_t _maxFd;
 
-    fd_set _writeFds;
-    fd_set _readFds;
-    fd_set _exceptFds;
+      fd_set _writeFds;
+      fd_set _readFds;
+      fd_set _exceptFds;
 
-    struct sockaddr_in _serverAddr;
-    struct sockaddr_in _clientAddr;
-    socklen_t _clientAddrLen;
+      struct sockaddr_in _serverAddr;
+      struct sockaddr_in _clientAddr;
+      socklen_t _clientAddrLen;
 
-    bool _running;
+      bool _running;
 };

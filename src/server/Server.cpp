@@ -27,6 +27,8 @@ void Server::init()
   if (_socket == -1)
     throw ServerException(SOCKET_CREATION_FAILED);
 
+  if (setsockopt(_socket, SOL_SOCKET, SO_REUSEADDR, &_opt, sizeof(_opt)) < 0)
+    throw ServerException(SOCKET_OPT_FAILED);
   _serverAddr.sin_family = AF_INET;
   _serverAddr.sin_addr.s_addr = INADDR_ANY;
   _serverAddr.sin_port = htons(_port);
@@ -35,7 +37,6 @@ void Server::init()
     throw ServerException(SOCKET_BIND_FAILED);
 
   Logging::Log("Server initialized on port " + std::to_string(_port));
-  // listen for incoming connections
   if (listen(_socket, 5) < 0)
     throw ServerException(SOCKET_LISTEN_FAILED);
 
@@ -58,80 +59,61 @@ void Server::_initFdSets()
   }
 }
 
-
 void Server::readFromClients()
 {
-  char buffer[1024] = {0};
-  int valread;
-  int client;
-  std::vector<int> disconnectedClients;
+  for (auto it = _clients.begin(); it != _clients.end(); ) {
+    int client = *it;
 
-  for (auto it = _clients.begin(); it != _clients.end(); ++it) {
-    client = *it;
-    valread = read(client, buffer, 1024);
+    if (FD_ISSET(client, &_readFds)) {
+      char buffer[1024] = {0};
+      int valread = read(client, buffer, sizeof(buffer));
 
-    if (valread == 0) {
-      Logging::LogWarning("Client disconnected");
-      disconnectedClients.push_back(client);
-    } else if (valread > 0) {
-      Logging::Log("Message received: " + std::string(buffer));
+      if (valread == 0) {
+          Logging::LogWarning("Client disconnected: " + std::to_string(client));
+          removeClient(client);  // Just closes socket
+          it = _clients.erase(it);  // Safely erase
+      } else {
+          Logging::Log("Message from " + std::to_string(client) + ": " + std::string(buffer));
+          ++it;
+      }
     } else {
-      Logging::LogWarning("Error reading from client");
+        ++it;
     }
-  }
-
-  for (int client : disconnectedClients) {
-    removeClient(client);
   }
 }
 
+
 void Server::run()
 {
-  if (!_running)
-    throw ServerException(SERVER_NOT_RUNNING);
+    if (!_running)
+        throw ServerException(SERVER_NOT_RUNNING);
 
-  while (true) {
-    _initFdSets();
+    while (true) {
+        _initFdSets();
+        _maxFd = _socket;
 
-    _maxFd = _socket;
-
-    // _clients is a vector of int
-    for (auto client : _clients) {
-      FD_SET(client, &_readFds);
-      FD_SET(client, &_exceptFds);
-
-      if (client > _maxFd)
-        _maxFd = client;
-
-      if (client < 0)
-        throw ServerException(INVALID_CLIENT_FD);
-
-      if (client == _socket)
-        throw ServerException(SOCKET_FD_IN_CLIENTS);
-    }
-
-    int activity = select(_maxFd + 1, &_readFds, &_writeFds, &_exceptFds, NULL);
-
-    if (activity < 0)
-      throw ServerException(SELECT_FAILED);
-
-    if (FD_ISSET(_socket, &_readFds)) {
-      int newClient = accept(_socket, (struct sockaddr *)&_clientAddr, (socklen_t *)&_clientAddrLen);
-
-      if (newClient < 0)
-        throw ServerException(SOCKET_ACCEPT_FAILED);
-
-      Logging::Log("New connection, socket fd is " + std::to_string(newClient));
-      addClient(newClient);
-    } else {
-      for (auto client : _clients) {
-        if (FD_ISSET(client, &_readFds)) {
-          std::cout << "Client " << client << " is ready to read" << std::endl;
-          readFromClients();
+        for (auto client : _clients) {
+            if (client > _maxFd)
+                _maxFd = client;
         }
-      }
+
+        int activity = select(_maxFd + 1, &_readFds, nullptr, nullptr, nullptr);
+        if (activity < 0)
+            throw ServerException(SELECT_FAILED);
+
+        // Check for new connections
+        if (FD_ISSET(_socket, &_readFds)) {
+            int newClient = accept(_socket, (struct sockaddr *)&_clientAddr, (socklen_t *)&_clientAddrLen);
+            if (newClient < 0)
+                throw ServerException(SOCKET_ACCEPT_FAILED);
+
+            Logging::Log("New connection, socket fd is " + std::to_string(newClient));
+            addClient(newClient);
+        }
+
+        // Handle client messages
+        readFromClients();
     }
-  }
 }
 
 
@@ -146,19 +128,12 @@ void Server::addClient(int client)
   Logging::Log("Client added, total clients: " + std::to_string(_clients.size()));
 }
 
+
 void Server::removeClient(int client)
 {
-  FD_CLR(client, &_readFds);
-  FD_CLR(client, &_exceptFds);
+    FD_CLR(client, &_readFds);
+    FD_CLR(client, &_exceptFds);
 
-  close(client);
-
-  for (auto it = _clients.begin(); it != _clients.end(); ++it) {
-    if (*it == client) {
-      _clients.erase(it);
-      break;
-    }
-  }
-
-  Logging::Log("Client removed, total clients: " + std::to_string(_clients.size()));
+    close(client);
+    Logging::Log("Client removed: " + std::to_string(client));
 }
