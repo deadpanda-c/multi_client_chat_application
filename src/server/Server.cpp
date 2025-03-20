@@ -1,5 +1,6 @@
 #include "Server.hpp"
 #include "Logging.hpp"
+#include "BinaryProtocol.hpp"
 
 Server::Server()
 {
@@ -73,7 +74,7 @@ void Server::readFromClients()
           removeClient(client);  // Just closes socket
           it = _clients.erase(it);  // Safely erase
       } else {
-          Logging::Log("Message from " + std::to_string(client) + ": " + std::string(buffer));
+          Logging::Log("Message from " + std::to_string(client) + ": " + std::string(BinaryProtocol::decode(buffer)));
           ++it;
       }
     } else {
@@ -136,4 +137,16 @@ void Server::removeClient(int client)
 
     close(client);
     Logging::Log("Client removed: " + std::to_string(client));
+}
+
+void Server::broadcast(const std::string &message)
+{
+  for (auto client : _clients) {
+    send(client, message.c_str(), message.size(), 0);
+  }
+}
+
+void Server::sendToClient(int client, const std::string &message)
+{
+  send(client, message.c_str(), message.size(), 0);
 }
