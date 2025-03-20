@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <vector>
+#include <map>
 #include <memory>
 #include <string>
 #include <sys/socket.h>
@@ -40,6 +41,7 @@ class Server {
       ~Server();
 
       void init();
+      void initCommands();
       void run();
       void stop();
 
@@ -52,15 +54,16 @@ class Server {
       void broadcast(const std::string& message);
       void sendToClient(int client, const std::string& message);
 
+      void commandHelp(int client, const std::string& message);
+      void commandList(int client, const std::string& message);
+
   private:
-      enum MessageType {
-          MESSAGE,
-          COMMAND
-      };
       void _initFdSets();
       void _interpretMessage(int client, const std::string& message);
 
 
+      // map of commands to function pointers
+      std::map<std::string, void (Server::*)(int, const std::string&)> _commands;
       std::vector<int> _clients;
       int _socket;
       int _maxClients;

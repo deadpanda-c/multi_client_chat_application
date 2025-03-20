@@ -24,6 +24,7 @@ Server::~Server()
 
 void Server::init()
 {
+  initCommands();
   _socket = socket(AF_INET, SOCK_STREAM, 0);
   if (_socket == -1)
     throw ServerException(SOCKET_CREATION_FAILED);
@@ -43,6 +44,33 @@ void Server::init()
 
   Logging::Log("Server listening for incoming connections...");
   _running = true;
+}
+
+void Server::commandHelp(int client, const std::string &message)
+{
+  std::string helpMessage = "Available commands:\n";
+  for (auto command : _commands) {
+    helpMessage += command.first + "\n";
+  }
+
+  sendToClient(client, BinaryProtocol::encode(helpMessage, SIMPLE_MESSAGE));
+}
+
+void Server::commandList(int client, const std::string &message)
+{
+  std::string listMessage = "Connected clients:\n";
+  for (auto client : _clients) {
+    listMessage += std::to_string(client) + "\n";
+  }
+
+  sendToClient(client, BinaryProtocol::encode(listMessage, SIMPLE_MESSAGE));
+}
+
+void Server::initCommands()
+{
+  _commands["/help"] = &Server::commandHelp;
+  _commands["/list"] = &Server::commandList;
+  _commands["/msg"] = &Server::sendToClient;
 }
 
 void Server::_initFdSets()
@@ -130,7 +158,6 @@ void Server::addClient(int client)
   Logging::Log("Client added, total clients: " + std::to_string(_clients.size()));
 }
 
-
 void Server::removeClient(int client)
 {
     FD_CLR(client, &_readFds);
@@ -163,6 +190,13 @@ void Server::_interpretMessage(int client, const std::string &message)
   } else if (header == COMMAND_MESSAGE) {
     std::string body = BinaryProtocol::decode(message);
     Logging::Log("Command message from " + std::to_string(client) + ": " + body);
+
+    for (auto command : _commands) {
+      if (body.find(command.first) == 0) {
+        (this->*command.second)(client, body);
+        break;
+      }
+    }
   } else {
     Logging::LogWarning("Unknown message from " + std::to_string(client) + ": " + message);
   }
