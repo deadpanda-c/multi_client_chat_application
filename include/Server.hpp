@@ -53,7 +53,13 @@ class Server {
       void sendToClient(int client, const std::string& message);
 
   private:
+      enum MessageType {
+          MESSAGE,
+          COMMAND
+      };
       void _initFdSets();
+      void _interpretMessage(int client, const std::string& message);
+
 
       std::vector<int> _clients;
       int _socket;

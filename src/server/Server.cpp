@@ -71,10 +71,11 @@ void Server::readFromClients()
 
       if (valread == 0) {
           Logging::LogWarning("Client disconnected: " + std::to_string(client));
-          removeClient(client);  // Just closes socket
-          it = _clients.erase(it);  // Safely erase
+          removeClient(client); 
+          it = _clients.erase(it);
       } else {
-          Logging::Log("Message from " + std::to_string(client) + ": " + std::string(BinaryProtocol::decode(buffer)));
+          // Logging::Log("Message from " + std::to_string(client) + ": " + std::string(BinaryProtocol::decode(buffer)));
+          _interpretMessage(client, buffer);
           ++it;
       }
     } else {
@@ -149,4 +150,20 @@ void Server::broadcast(const std::string &message)
 void Server::sendToClient(int client, const std::string &message)
 {
   send(client, message.c_str(), message.size(), 0);
+}
+
+void Server::_interpretMessage(int client, const std::string &message)
+{
+  std::string header = BinaryProtocol::getHeader(message);
+  Logging::Log("Header: " + header);
+
+  if (header == SIMPLE_MESSAGE) {
+    std::string body = BinaryProtocol::decode(message);
+    Logging::Log("Simple message from " + std::to_string(client) + ": " + body);
+  } else if (header == COMMAND_MESSAGE) {
+    std::string body = BinaryProtocol::decode(message);
+    Logging::Log("Command message from " + std::to_string(client) + ": " + body);
+  } else {
+    Logging::LogWarning("Unknown message from " + std::to_string(client) + ": " + message);
+  }
 }
