@@ -50,6 +50,7 @@ class Server {
       void removeClient(int client);
 
       void broadcast(const std::string& message);
+      void sendToClient(int client, const std::string& message);
 
   private:
       void _initFdSets();
