@@ -1,58 +1,81 @@
 #include "Client.hpp"
-#include "Logging.hpp"
 #include "BinaryProtocol.hpp"
 
-Client::Client()
-{
-  _fd = -1;
+Client::Client(const std::string &serverIp, unsigned short port): _serverIp(serverIp), _port(port), _running(true) {
+  #ifdef _WIN32
+      WSAStartup(MAKEWORD(2, 2), &_wsa);
+  #endif
+
+  _socket = socket(AF_INET, SOCK_STREAM, 0);
+  if (_socket == -1) {
+    throw ClientException(SOCKET_CREATION_FAILED);
+    return;
+  }
+  _serverAddr.sin_family = AF_INET;
+  _serverAddr.sin_port = htons(_port);
+  inet_pton(AF_INET, _serverIp.c_str(), &_serverAddr.sin_addr);
+
+  if (connect(_socket, (struct sockaddr*)&_serverAddr, sizeof(_serverAddr)) < 0) {
+    throw ClientException(CONNECTION_FAILED);
+    return;
+  }
+
+  std::cout << "Connected to server!" << std::endl;
+  _receiver = std::thread(&Client::receiveMessage, this);
 }
 
 Client::~Client()
 {
+  _running = false;
 
+  if (_receiver.joinable())
+      _receiver.join();
+  #ifdef _WIN32
+      closesocket(_socket);
+      WSACleanup();
+  #else
+      close(_socket);
+  #endif
+  std::cout << "Connection closed!" << std::endl;
 }
 
-void Client::init(const std::string &ip, unsigned short port)
+void Client::sendMessage(const std::string &message)
 {
-  _ip = ip;
-  _port = port;
-  _fd = socket(AF_INET, SOCK_STREAM, 0);
+  std::string messageType = (message[0] == '/') ? COMMAND_MESSAGE : SIMPLE_MESSAGE;
+  std::string binaryMessage = BinaryProtocol::encode(message, messageType);
 
-  if (_fd == -1)
-    throw ClientException(SOCKET_ERROR);
+  send(_socket, binaryMessage.c_str(), binaryMessage.size(), 0);
 }
 
-void Client::sendMsg(const std::string &msg)
-{
-  if (!_connected)
-    throw ClientException(NOT_CONNECTED);
-  std::string msgToSend = "";
-  std::string msgType = (msg[0] == '/') ? COMMAND_MESSAGE : SIMPLE_MESSAGE;
+std::string Client::receiveMessage() {
+  char buffer[1024] = {0};
 
-  msgToSend = BinaryProtocol::encode(msg, msgType);
+  while (_running) {
+    int bytesReceived = recv(_socket, buffer, sizeof(buffer) - 1, 0);
 
-  if (send(_fd, msgToSend.c_str(), msgToSend.size(), 0) == -1)
-    throw ClientException(SEND_FAILED);
+    if (bytesReceived > 0) {
+      buffer[bytesReceived] = '\0';
+      std::cout << "Server: " << buffer << std::endl;
+      std::cout << "You: ";
+      std::cout.flush();
+    } else if (bytesReceived == 0) {
+      std::cout << "Server disconnected!" << std::endl;
+      _running = false;
+      break;
+    }
+  }
+  return std::string(buffer);
 }
+void Client::run() {
+  std::string message;
 
-std::string Client::getInput()
-{
-  std::string input;
-  std::getline(std::cin, input);
-  return input;
-}
+  while (true) {
+    std::cout << "You: ";
+    std::getline(std::cin, message);
 
-void Client::run()
-{
-  _serv_addr.sin_family = AF_INET;
-  _serv_addr.sin_port = htons(_port);
-  _serv_addr.sin_addr.s_addr = inet_addr(_ip.c_str());
+    sendMessage(message);
 
-  if (connect(_fd, (struct sockaddr *)&_serv_addr, sizeof(_serv_addr)) == -1)
-    throw ClientException(CONNECT_FAILED);
-  _connected = true;
+    //std::string response = receiveMessage();
 
-  while (_connected) {
-    sendMsg(getInput());
   }
 }

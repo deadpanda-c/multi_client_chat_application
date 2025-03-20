@@ -1,51 +1,54 @@
-#pragma once
+
+#ifdef _WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+#include <thread>
+    #pragma comment(lib, "ws2_32.lib")  // Link with Winsock library
+#else
+  #include <sys/socket.h>
+  #include <netinet/in.h>
+  #include <arpa/inet.h>
+  #include <unistd.h>
+  #include <thread>
+#endif
 
 #include <iostream>
 #include <string>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <memory>
+#include <atomic>
 #include <exception>
-#include <arpa/inet.h>
-#include <unistd.h>
 
-#define MAX_MSG_SIZE 1024
-#define SOCKET_ERROR "Failed to create socket"
-#define CONNECT_FAILED "Failed to connect to server"
-#define NOT_CONNECTED "Not connected to server"
-#define SEND_FAILED "Failed to send message"
-#define RECEIVE_FAILED "Failed to receive message"
+#define CONNECTION_FAILED "Connection failed"
+#define SOCKET_CREATION_FAILED "Socket creation failed"
 
-class Client
-{
+class Client {
   public:
     class ClientException : public std::exception {
       public:
-        ClientException(const std::string& msg) : _msg(msg) {}
+        ClientException(const std::string& message) : _message(message) {}
         const char* what() const noexcept override {
-          return _msg.c_str();
+            return _message.c_str();
         }
+
       private:
-        std::string _msg;
+        std::string _message;
     };
-    Client();
+    Client(const std::string& serverIp, unsigned short port);
     ~Client();
 
-    void init(const std::string& ip, unsigned short port);
+    void sendMessage(const std::string& message);
+    std::string receiveMessage();
     void run();
-    std::string getInput();
-    void sendMsg(const std::string& msg);
-    std::string receive();
-    void close();
-
 
   private:
-    int _fd;
-    int _serv_fd;
+    std::string _serverIp;
     unsigned short _port;
-    std::string _ip;
-    struct sockaddr_in _addr;
-    struct sockaddr_in _serv_addr;
-    bool _connected;
+    int _socket;
+    std::atomic<bool> _running;
+    std::thread _receiver;
+    struct sockaddr_in _serverAddr;
 
+    #ifdef _WIN32
+        WSADATA _wsa;
+    #endif
 };
+
