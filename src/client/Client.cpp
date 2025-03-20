@@ -26,7 +26,10 @@ void Client::sendMsg(const std::string &msg)
 {
   if (!_connected)
     throw ClientException(NOT_CONNECTED);
-  std::string msgToSend = BinaryProtocol::encode(msg);
+  std::string msgToSend = "";
+  std::string msgType = (msg[0] == '/') ? COMMAND_MESSAGE : SIMPLE_MESSAGE;
+
+  msgToSend = BinaryProtocol::encode(msg, msgType);
 
   if (send(_fd, msgToSend.c_str(), msgToSend.size(), 0) == -1)
     throw ClientException(SEND_FAILED);
