@@ -1,6 +1,7 @@
 #include "Server.hpp"
 #include "Logging.hpp"
 #include "BinaryProtocol.hpp"
+#include "Utils.hpp"
 
 Server::Server()
 {
@@ -66,8 +67,22 @@ void Server::commandList(int client, const std::string &message)
   sendToClient(client, BinaryProtocol::encode(listMessage, SIMPLE_MESSAGE));
 }
 
+void Server::clientLogin(int client, const std::string &message)
+{
+  std::cout << "MESSAGE: " << message << std::endl;
+  std::vector<std::string> tokens = Utils::split(message, ' ');
+
+  std::cout << "Tokens: " << tokens.size() << std::endl;
+  if (tokens.size() != 2) {
+    sendToClient(client, BinaryProtocol::encode("Invalid login command", SIMPLE_MESSAGE));
+    return;
+  }
+  _clientNames[client] = tokens[1];
+}
+
 void Server::initCommands()
 {
+  // _commands["/login"] = &Server::clientLogin;
   _commands["/help"] = &Server::commandHelp;
   _commands["/list"] = &Server::commandList;
   _commands["/msg"] = &Server::sendToClient;
@@ -99,7 +114,7 @@ void Server::readFromClients()
 
       if (valread == 0) {
           Logging::LogWarning("Client disconnected: " + std::to_string(client));
-          removeClient(client); 
+          removeClient(client);
           it = _clients.erase(it);
       } else {
           // Logging::Log("Message from " + std::to_string(client) + ": " + std::string(BinaryProtocol::decode(buffer)));
@@ -115,35 +130,38 @@ void Server::readFromClients()
 
 void Server::run()
 {
-    if (!_running)
-        throw ServerException(SERVER_NOT_RUNNING);
+  if (!_running)
+      throw ServerException(SERVER_NOT_RUNNING);
 
-    while (true) {
-        _initFdSets();
-        _maxFd = _socket;
+  while (true) {
+    _initFdSets();
+    _maxFd = _socket;
 
-        for (auto client : _clients) {
-            if (client > _maxFd)
-                _maxFd = client;
-        }
-
-        int activity = select(_maxFd + 1, &_readFds, nullptr, nullptr, nullptr);
-        if (activity < 0)
-            throw ServerException(SELECT_FAILED);
-
-        // Check for new connections
-        if (FD_ISSET(_socket, &_readFds)) {
-            int newClient = accept(_socket, (struct sockaddr *)&_clientAddr, (socklen_t *)&_clientAddrLen);
-            if (newClient < 0)
-                throw ServerException(SOCKET_ACCEPT_FAILED);
-
-            Logging::Log("New connection, socket fd is " + std::to_string(newClient));
-            addClient(newClient);
-        }
-
-        // Handle client messages
-        readFromClients();
+    for (auto client : _clients) {
+      if (client > _maxFd)
+        _maxFd = client;
     }
+
+    int activity = select(_maxFd + 1, &_readFds, nullptr, nullptr, nullptr);
+    if (activity < 0)
+      throw ServerException(SELECT_FAILED);
+
+    _clientAddrLen = sizeof(_clientAddr);
+    // Check for new connections
+    if (FD_ISSET(_socket, &_readFds)) {
+      int newClient = accept(_socket, (struct sockaddr *)&_clientAddr, (socklen_t *)&_clientAddrLen);
+      if (newClient < 0) {
+          perror("accept");
+          throw ServerException(SOCKET_ACCEPT_FAILED + std::to_string(newClient));
+      }
+
+      Logging::Log("New connection, socket fd is " + std::to_string(newClient));
+      addClient(newClient);
+    }
+
+    // Handle client messages
+    readFromClients();
+  }
 }
 
 
@@ -189,6 +207,8 @@ void Server::_interpretMessage(int client, const std::string &message)
     Logging::Log("Simple message from " + std::to_string(client) + ": " + body);
   } else if (header == COMMAND_MESSAGE) {
     std::string body = BinaryProtocol::decode(message);
+    if (!_checkIfLoggedIn(client, body))
+      clientLogin(client, body);
     Logging::Log("Command message from " + std::to_string(client) + ": " + body);
 
     for (auto command : _commands) {
@@ -200,4 +220,9 @@ void Server::_interpretMessage(int client, const std::string &message)
   } else {
     Logging::LogWarning("Unknown message from " + std::to_string(client) + ": " + message);
   }
+}
+
+bool Server::_checkIfLoggedIn(int client, const std::string &message)
+{
+  return (std::find(_loggedInClients.begin(), _loggedInClients.end(), client) != _loggedInClients.end());
 }

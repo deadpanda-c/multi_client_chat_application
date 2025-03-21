@@ -55,7 +55,7 @@ std::string Client::receiveMessage() {
 
     if (bytesReceived > 0) {
       buffer[bytesReceived] = '\0';
-      std::cout << "Server: " << buffer << std::endl;
+      std::cout << "Server: " << BinaryProtocol::decode(buffer) << std::endl;
       std::cout << "You: ";
       std::cout.flush();
     } else if (bytesReceived == 0) {
@@ -66,9 +66,20 @@ std::string Client::receiveMessage() {
   }
   return std::string(buffer);
 }
+
+void Client::login() {
+  std::string username;
+
+  std::cout << "Username: ";
+  std::cin >> username;
+
+  sendMessage("/login " + username);
+}
+
 void Client::run() {
   std::string message;
 
+  login();
   while (true) {
     std::cout << "You: ";
     std::getline(std::cin, message);

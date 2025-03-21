@@ -38,6 +38,7 @@ class Client {
     void sendMessage(const std::string& message);
     std::string receiveMessage();
     void run();
+    void login();
 
   private:
     std::string _serverIp;

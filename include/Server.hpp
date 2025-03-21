@@ -11,6 +11,8 @@
 #include <cstring>
 #include <arpa/inet.h>
 #include <sys/select.h>
+#include <stdbool.h>
+#include <algorithm>
 
 #define MAX_CLIENTS 10
 #define MAX_BUFFER_SIZE 1024
@@ -56,14 +58,16 @@ class Server {
 
       void commandHelp(int client, const std::string& message);
       void commandList(int client, const std::string& message);
+      void clientLogin(int client, const std::string& message);
 
   private:
       void _initFdSets();
       void _interpretMessage(int client, const std::string& message);
+      bool _checkIfLoggedIn(int client, const std::string& message);
 
-
-      // map of commands to function pointers
       std::map<std::string, void (Server::*)(int, const std::string&)> _commands;
+      std::map<int, std::string> _clientNames;
+      std::vector<int> _loggedInClients;
       std::vector<int> _clients;
       int _socket;
       int _maxClients;
