@@ -33,13 +33,6 @@ class Window : public QWidget {
       sideMenu->setFixedWidth(300);
       sideMenu->setFixedHeight(WINDOW_HEIGHT);
 
-      addItemToSideMenu("Toto");
-      addItemToSideMenu("Tata");
-      addItemToSideMenu("Titi");
-      addItemToSideMenu("Tutu");
-      addItemToSideMenu("Tete");
-
-
       chat = new QListWidget(this);
       chat->setFixedWidth(WINDOW_WIDTH - 300);
       chat->setFixedHeight(WINDOW_HEIGHT);
