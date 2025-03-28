@@ -69,8 +69,11 @@ void Server::commandList(int client, const std::string &message)
 
 void Server::clientLogin(int client, const std::string &message)
 {
-  std::cout << "MESSAGE: " << message << std::endl;
-  std::vector<std::string> tokens = Utils::split(message, ' ');
+  std::cout << "Client login: " << message << std::endl;
+  return;
+  std::string body = BinaryProtocol::decode(message);
+  std::cout << "BODY: " << body << std::endl;
+  std::vector<std::string> tokens = Utils::split(body, ' ');
 
   std::cout << "Tokens: " << tokens.size() << std::endl;
   if (tokens.size() != 2) {
@@ -200,13 +203,12 @@ void Server::sendToClient(int client, const std::string &message)
 void Server::_interpretMessage(int client, const std::string &message)
 {
   std::string header = BinaryProtocol::getHeader(message);
-  Logging::Log("Header: " + header);
 
+  Logging::Log("Header: " + header);
+  std::string body = BinaryProtocol::decode(message);
   if (header == SIMPLE_MESSAGE) {
-    std::string body = BinaryProtocol::decode(message);
     Logging::Log("Simple message from " + std::to_string(client) + ": " + body);
   } else if (header == COMMAND_MESSAGE) {
-    std::string body = BinaryProtocol::decode(message);
     if (!_checkIfLoggedIn(client, body))
       clientLogin(client, body);
     Logging::Log("Command message from " + std::to_string(client) + ": " + body);
@@ -218,7 +220,7 @@ void Server::_interpretMessage(int client, const std::string &message)
       }
     }
   } else {
-    Logging::LogWarning("Unknown message from " + std::to_string(client) + ": " + message);
+    Logging::LogWarning("Unknown message from " + std::to_string(client) + ": " + body);
   }
 }
 
