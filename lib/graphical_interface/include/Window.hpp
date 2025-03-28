@@ -42,7 +42,7 @@ class Window : public QWidget {
       mainLayout->addWidget(chat);
     }
 
-    ~Window();
+    virtual ~Window() {}
 
     void addItemToSideMenu(const QString &item)
     {
