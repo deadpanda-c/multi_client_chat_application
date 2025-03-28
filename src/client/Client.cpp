@@ -22,6 +22,7 @@ Client::Client(const std::string &serverIp, unsigned short port): _serverIp(serv
 
   std::cout << "Connected to server!" << std::endl;
   _receiver = std::thread(&Client::receiveMessage, this);
+  _graphical = std::thread(&Client::show, this);
 }
 
 Client::~Client()
@@ -38,6 +39,7 @@ Client::~Client()
   #endif
   std::cout << "Connection closed!" << std::endl;
 }
+
 
 void Client::sendMessage(const std::string &message)
 {
@@ -56,7 +58,7 @@ std::string Client::receiveMessage() {
     if (bytesReceived > 0) {
       buffer[bytesReceived] = '\0';
       std::cout << "Server: " << BinaryProtocol::decode(buffer) << std::endl;
-      std::cout << "You: ";
+    //  std::cout << "You: ";
       std::cout.flush();
     } else if (bytesReceived == 0) {
       std::cout << "Server disconnected!" << std::endl;
@@ -69,24 +71,39 @@ std::string Client::receiveMessage() {
 
 void Client::login() {
   std::string username;
+  std::string encodedMessage = "";
 
   std::cout << "Username: ";
   std::cin >> username;
+  std::string cmd = std::string("/login ") + username;
 
-  sendMessage("/login " + username);
+
+  encodedMessage = BinaryProtocol::encode(cmd, COMMAND_MESSAGE);
+  std::cout << "Encoded message: " << encodedMessage << std::endl;
+  std::cout << "Decoded message: " << BinaryProtocol::decode(encodedMessage) << std::endl;
+  sendMessage(BinaryProtocol::encode(encodedMessage, COMMAND_MESSAGE));
 }
 
 void Client::run() {
   std::string message;
 
-  login();
+  // login();
   while (true) {
     std::cout << "You: ";
     std::getline(std::cin, message);
 
     sendMessage(message);
-
-    //std::string response = receiveMessage();
-
   }
+}
+
+int Client::show()
+{
+  int ac = 0;
+  char **av = nullptr;
+
+  QApplication app(ac, av);
+  _window = new Window("MyWindow");
+
+  _window->show();
+  return app.exec();
 }
