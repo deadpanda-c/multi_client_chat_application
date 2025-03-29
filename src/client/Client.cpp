@@ -1,4 +1,3 @@
-
 #include "Client.hpp"
 #include "BinaryProtocol.hpp"
 

@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
+set(CMAKE_CXX_COMPILER g++)
 project(multi_user_chat_app)
 
 file(GLOB_RECURSE SERVER_SOURCES "src/server/*.cpp")
