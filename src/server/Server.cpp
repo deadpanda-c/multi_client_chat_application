@@ -27,6 +27,8 @@ Server::~Server()
 void Server::init()
 {
   initCommands();
+  initDatabase();
+
   _socket = socket(AF_INET, SOCK_STREAM, 0);
   if (_socket == -1)
     throw ServerException(SOCKET_CREATION_FAILED);
@@ -72,16 +74,21 @@ void Server::commandList(int client, const std::string &message)
 
 void Server::clientLogin(int client, const std::string &name)
 {
-  _clientsNames[client] = (_checkIfLoggedIn(client, name)) ? name + std::to_string(_loggedInClients.size() + 1) : name;
+  int count = 0;
+  std::string new_name = "";
 
-  Logging::Log("Client logged in: " + name);
-  for (auto client : _clients) {
+  count = std::count(_loggedInClients.begin(), _loggedInClients.end(), name);
+
+  new_name = (count > 0) ? name + std::to_string(count - 1) : name;
+  _clientsNames[client] = (_checkIfLoggedIn(client, name)) ? new_name : name;
+  _loggedInClients.push_back(new_name);
+
+  Logging::Log("Client logged in: " + _clientsNames[client]);
+  sendToClient(client, BinaryProtocol::encode(_clientsNames[client], LOGIN));
+  for (auto client : _clients)
     commandList(client, "");
-  }
 
-  for (auto name : _clientsNames) {
-    Logging::Log("Client: " + name.second);
-  }
+  saveClientToDatabase(client, _clientsNames[client]);
 }
 
 void Server::initCommands()
@@ -91,12 +98,51 @@ void Server::initCommands()
   _commands[LIST_USERS] = &Server::commandList;
 }
 
+void Server::initDatabase()
+{
+  if (std::filesystem::is_directory(DB_PATH)) {
+    Logging::Log("Database folder exists");
+    loadDatabase();
+  } else {
+    Logging::Log("Database folder does not exist, creating...");
+    std::filesystem::create_directory(DB_PATH);
+    Logging::Log("Database folder created");
+  }
+}
+
+void Server::loadDatabase()
+{
+  for (const auto &entry : std::filesystem::directory_iterator(DB_PATH)) {
+    std::string filename = entry.path().filename().string();
+    std::string name = filename.substr(0, filename.find("."));
+    _loggedInClients.push_back(name);
+  }
+}
+
+void Server::saveClientToDatabase(int client, const std::string &name)
+{
+  if (!std::filesystem::is_directory(DB_PATH + name)) {
+    std::filesystem::create_directory(DB_PATH + name);
+    std::filesystem::create_directory(DB_PATH + name + "/messages");
+    std::ofstream file(DB_PATH + name + "/info.txt");
+    file << "Client: " << name << std::endl;
+    file << "Account created on " << Utils::getCurrentTime() << std::endl;
+    file << "Last login on " << Utils::getCurrentTime() << std::endl;
+    file.close();
+  }
+}
+
 void Server::commandsMessage(int client, const std::string &message)
 {
   std::vector<std::string> tokens = Utils::split(message, ' ');
 
-  if (tokens.size() < 3) {
+  if (tokens.size() < 3 && tokens.size() != 2) {
     Logging::LogWarning("Invalid message format: " + message);
+    return;
+  }
+
+  if (tokens.size() == 2) {
+    Logging::LogWarning(_clientsNames[client] + " want to communicate with " + tokens[1]);
     return;
   }
 
@@ -192,7 +238,6 @@ void Server::addClient(int client)
 {
   _clients.push_back(client);
   Logging::Log("Client added, total clients: " + std::to_string(_clients.size()));
-  // send the list of clients to all clients
 }
 
 void Server::removeClient(int client)
