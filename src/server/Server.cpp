@@ -208,6 +208,7 @@ void Server::_interpretMessage(int client, const std::string &message)
   std::string body = BinaryProtocol::decode(message);
   if (header == SIMPLE_MESSAGE) {
     Logging::Log("Simple message from " + std::to_string(client) + ": " + body);
+    broadcast(message);
   } else if (header == COMMAND_MESSAGE) {
     if (!_checkIfLoggedIn(client, body))
       clientLogin(client, body);

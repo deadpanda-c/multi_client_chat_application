@@ -2,7 +2,7 @@
 #include "BinaryProtocol.hpp"
 
 Client::Client(const std::string &serverIp, unsigned short port, const std::string &title)
-    : _serverIp(serverIp), _port(port), _running(true) {
+    : _serverIp(serverIp), _port(port), _running(true), _message(NULL) {
 #ifdef _WIN32
     WSAStartup(MAKEWORD(2, 2), &_wsa);
 #endif
@@ -18,7 +18,6 @@ Client::Client(const std::string &serverIp, unsigned short port, const std::stri
     _serverAddr.sin_port = htons(_port);
     inet_pton(AF_INET, _serverIp.c_str(), &_serverAddr.sin_addr);
 
-    // Set socket to non-blocking mode
 #ifdef _WIN32
     u_long mode = 1;
     ioctlsocket(_socket, FIONBIO, &mode);
@@ -46,7 +45,8 @@ Client::Client(const std::string &serverIp, unsigned short port, const std::stri
     }
 
     // Wait for connection to complete (polling)
-    int error;
+    int error = 0;
+
     socklen_t len = sizeof(error);
     while (true) {
         getsockopt(_socket, SOL_SOCKET, SO_ERROR, (void *)&error, &len);
@@ -73,19 +73,23 @@ void Client::show() {
     _window = new QWidget();
     _window->setWindowTitle("Chat Client");
     _window->setFixedSize(800, 600);
+    _sideMenu = new QListWidget();
+    _mainLayout = new QHBoxLayout();
 
-    _mainLayout = new QVBoxLayout();
+    _chatLayout = new QVBoxLayout();
+
+    _mainLayout->addLayout(_chatLayout);
     _window->setLayout(_mainLayout);
 
     _textEdit = new QTextEdit();
     _textEdit->setReadOnly(true);
-    _mainLayout->addWidget(_textEdit);
+    _chatLayout->addWidget(_textEdit);
 
     _input = new QLineEdit();
-    _mainLayout->addWidget(_input);
+    _chatLayout->addWidget(_input);
 
     _sendButton = new QPushButton("Send");
-    _mainLayout->addWidget(_sendButton);
+    _chatLayout->addWidget(_sendButton);
 
     QObject::connect(_sendButton, &QPushButton::clicked, this, [this]() {
         sendMessage(_input->text().toStdString());
@@ -113,27 +117,35 @@ Client::~Client() {
 
 void Client::sendMessage(const std::string &message) {
     std::string messageType = (message[0] == '/') ? COMMAND_MESSAGE : SIMPLE_MESSAGE;
-    std::string binaryMessage = BinaryProtocol::encode(message, messageType);
+    std::string binaryMessage = BinaryProtocol::encode((messageType == SIMPLE_MESSAGE) ? std::string("/msg ") + message : message, messageType);
+
     send(_socket, binaryMessage.c_str(), binaryMessage.size(), 0);
 }
 
 std::string Client::receiveMessage() {
-    char buffer[1024] = {0};
+  char buffer[1024] = {0};
+  std::string decodedMessage;
 
-    while (_running) {
-        int bytesReceived = recv(_socket, buffer, sizeof(buffer) - 1, 0);
+  while (_running) {
+    _message = new char[1024];
+    int bytesReceived = recv(_socket, buffer, sizeof(buffer) - 1, 0);
 
-        if (bytesReceived > 0) {
-            buffer[bytesReceived] = '\0';
-            //_parseMessage(std::string(buffer), BinaryProtocol::getHeader(buffer));
+    if (bytesReceived > 0) {
+        buffer[bytesReceived] = '\0';
 
-            std::cout << "Server: " << BinaryProtocol::decode(buffer) << std::endl;
-        } else if (bytesReceived == 0) {
-            std::cout << "Server disconnected!" << std::endl;
-            _running = false;
-            break;
-        }
+        decodedMessage = BinaryProtocol::decode(std::string(buffer));
+
+        _message = (char *)memcpy(_message, decodedMessage.c_str(), sizeof(buffer));
+        std::cout << "Server: " << _message << std::endl;
+
+    } else if (bytesReceived == 0) {
+        std::cout << "Server disconnected!" << std::endl;
+        _running = false;
+        break;
     }
+    delete[] _message;
+    _message = NULL;
+  }
     return std::string(buffer);
 }
 

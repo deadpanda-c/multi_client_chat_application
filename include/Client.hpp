@@ -65,10 +65,11 @@ class Client : public QWidget {
 
   private:
     QWidget *_window;
-    QListWidget *sideMenu;
-    QListWidget *chat;
+    QListWidget *_sideMenu;
+    // QListWidget *chat;
 
-    QVBoxLayout *_mainLayout;
+    QHBoxLayout *_mainLayout;
+    QVBoxLayout *_chatLayout;
     QLineEdit *_input;
     QTextEdit *_textEdit;
     QPushButton *_sendButton;
@@ -82,6 +83,8 @@ class Client : public QWidget {
     std::thread _receiver;
     std::thread _graphical;
     struct sockaddr_in _serverAddr;
+    // message from server
+    std::atomic<char *> _message;
 
     #ifdef _WIN32
         WSADATA _wsa;
