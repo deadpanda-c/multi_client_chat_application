@@ -59,6 +59,7 @@ class Server {
       void commandHelp(int client, const std::string& message);
       void commandList(int client, const std::string& message);
       void clientLogin(int client, const std::string& message);
+      void commandsMessage(int client, const std::string& message);
 
   private:
       void _initFdSets();
@@ -66,7 +67,7 @@ class Server {
       bool _checkIfLoggedIn(int client, const std::string& message);
 
       std::map<std::string, void (Server::*)(int, const std::string&)> _commands;
-      std::map<int, std::string> _clientNames;
+      std::map<int, std::string> _clientsNames;
       std::vector<int> _loggedInClients;
       std::vector<int> _clients;
       int _socket;
