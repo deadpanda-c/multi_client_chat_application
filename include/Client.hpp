@@ -20,6 +20,7 @@
 #include <string>
 #include <atomic>
 #include <exception>
+#include <cstdlib>
 
 #include <QObject>
 #include <QListWidget>
@@ -67,8 +68,11 @@ class Client : public QWidget {
     void addItemToSideMenu(const std::string &item);
     void addMessageToChat(QString message);
 
+  private slots:
+    void onUserClick(QListWidgetItem *item);
+
   private:
-    void _parseCommand(const std::string& message, const std::string &header);
+    void _displayConnectedUsers(const std::string& message, const std::string &header);
     QWidget *_window;
 
     QHBoxLayout *_mainLayout;
@@ -83,6 +87,7 @@ class Client : public QWidget {
 
     std::vector<QWidget*> widgets;
     std::string _serverIp;
+    std::string _username;
     unsigned short _port;
     int _socket;
     std::atomic<bool> _running;
