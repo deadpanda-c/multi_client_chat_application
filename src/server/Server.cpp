@@ -2,6 +2,7 @@
 #include "Logging.hpp"
 #include "BinaryProtocol.hpp"
 #include "Utils.hpp"
+#include <vector>
 
 Server::Server()
 {
@@ -88,7 +89,7 @@ void Server::initCommands()
   // _commands["/login"] = &Server::clientLogin;
   _commands["/help"] = &Server::commandHelp;
   _commands["/list"] = &Server::commandList;
-  _commands["/msg"] = &Server::sendToClient;
+  // _commands["/msg"] = &Server::sendToClient;
 }
 
 void Server::_initFdSets()
@@ -190,25 +191,55 @@ void Server::removeClient(int client)
 
 void Server::broadcast(const std::string &message)
 {
+  std::string body = BinaryProtocol::encode(message, SIMPLE_MESSAGE);
+
   for (auto client : _clients) {
-    send(client, message.c_str(), message.size(), 0);
+    sendToClient(client, body);
+    Logging::Log("Broadcasting message to " + std::to_string(client) + ": " + message);
   }
 }
 
 void Server::sendToClient(int client, const std::string &message)
 {
+ // std::string decoded = BinaryProtocol::decode(message);
+ // std::vector<std::string> tokens = Utils::split(decoded, ' ');
+ // if (tokens.size() < 3) {
+ //   Logging::LogWarning("Invalid message format: " + decoded);
+ //   return;
+ // }
+ // std::string final_message = std::to_string(client) + ": " + tokens[1];
   send(client, message.c_str(), message.size(), 0);
 }
 
 void Server::_interpretMessage(int client, const std::string &message)
 {
   std::string header = BinaryProtocol::getHeader(message);
+  int targetClient = 0;
 
   Logging::Log("Header: " + header);
   std::string body = BinaryProtocol::decode(message);
   if (header == SIMPLE_MESSAGE) {
     Logging::Log("Simple message from " + std::to_string(client) + ": " + body);
-    broadcast(message);
+    std::vector<std::string> tokens = Utils::split(body, ' ');
+
+    if (tokens[0] == "/msg") {
+      std::vector<std::string> result(tokens.begin() + 2, tokens.end());
+
+      for (auto token : result) {
+        std::cout << "Token: " << token << std::endl;
+      }
+      if (tokens.size() < 3) {
+        Logging::LogWarning("Invalid message format: " + body);
+        // return;
+      }
+
+      // targetClient = std::stoi(tokens[1]);
+
+      std::string final_message = std::to_string(client) + ": " + Utils::join(result, " ");
+      // sendToClient(targetClient, BinaryProtocol::encode(final_message, SIMPLE_MESSAGE));
+      broadcast(final_message);
+      Logging::Log("Broadcasting message to " + std::to_string(client) + ": " + final_message);
+    }
   } else if (header == COMMAND_MESSAGE) {
     if (!_checkIfLoggedIn(client, body))
       clientLogin(client, body);
@@ -217,7 +248,7 @@ void Server::_interpretMessage(int client, const std::string &message)
     for (auto command : _commands) {
       if (body.find(command.first) == 0) {
         (this->*command.second)(client, body);
-        break;
+        return;
       }
     }
   } else {
