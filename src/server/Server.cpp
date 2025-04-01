@@ -60,12 +60,14 @@ void Server::commandHelp(int client, const std::string &message)
 
 void Server::commandList(int client, const std::string &message)
 {
-  std::string listMessage = "Connected clients:\n";
+  (void)message; // unused
+
+  std::string listMessage = "";
   for (auto client : _clients) {
-    listMessage += std::to_string(client) + "\n";
+    listMessage += std::to_string(client) + " ";
   }
 
-  sendToClient(client, BinaryProtocol::encode(listMessage, SIMPLE_MESSAGE));
+  sendToClient(client, BinaryProtocol::encode(listMessage, LIST_USERS));
 }
 
 void Server::clientLogin(int client, const std::string &message)
@@ -131,7 +133,6 @@ void Server::readFromClients()
   }
 }
 
-
 void Server::run()
 {
   if (!_running)
@@ -178,6 +179,10 @@ void Server::addClient(int client)
 {
   _clients.push_back(client);
   Logging::Log("Client added, total clients: " + std::to_string(_clients.size()));
+  // send the list of clients to all clients
+  for (auto client : _clients) {
+    commandList(client, "");
+  }
 }
 
 void Server::removeClient(int client)
@@ -201,13 +206,6 @@ void Server::broadcast(const std::string &message)
 
 void Server::sendToClient(int client, const std::string &message)
 {
- // std::string decoded = BinaryProtocol::decode(message);
- // std::vector<std::string> tokens = Utils::split(decoded, ' ');
- // if (tokens.size() < 3) {
- //   Logging::LogWarning("Invalid message format: " + decoded);
- //   return;
- // }
- // std::string final_message = std::to_string(client) + ": " + tokens[1];
   send(client, message.c_str(), message.size(), 0);
 }
 

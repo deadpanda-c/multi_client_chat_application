@@ -2,12 +2,12 @@
 #include "BinaryProtocol.hpp"
 
 Client::Client(const std::string &serverIp, unsigned short port, const std::string &title)
-    : _serverIp(serverIp), _port(port), _running(true), _message(NULL) {
+    : _serverIp(serverIp), _port(port), _running(true), _message(NULL), _windowInitialized(false){
 #ifdef _WIN32
     WSAStartup(MAKEWORD(2, 2), &_wsa);
 #endif
     std::cout << "Client created!" << std::endl;
-
+    _availableCommands = initCommands();
     _socket = socket(AF_INET, SOCK_STREAM, 0);
     if (_socket == -1) {
         throw ClientException(SOCKET_CREATION_FAILED);
@@ -44,7 +44,7 @@ Client::Client(const std::string &serverIp, unsigned short port, const std::stri
 #endif
     }
 
-    // Wait for connection to complete (polling)
+    // Wait for connection to complete
     int error = 0;
 
     socklen_t len = sizeof(error);
@@ -69,8 +69,19 @@ Client::Client(const std::string &serverIp, unsigned short port, const std::stri
     _receiver = std::thread(&Client::receiveMessage, this);
 }
 
+std::vector<std::string> Client::initCommands() {
+  std::vector<std::string> commands;
+  commands.push_back("/login");
+  commands.push_back("/logout");
+  commands.push_back("/msg");
+  commands.push_back("/help");
+  commands.push_back("/list");
+  commands.push_back("/exit");
+
+  return commands;
+}
+
 void Client::show() {
-  QString message = "Hello, World!";
   // Window setup
     _window = new QWidget();
     _window->setWindowTitle("Chat Client");
@@ -78,11 +89,15 @@ void Client::show() {
 
     // Layout setup
     _mainLayout = new QHBoxLayout();
-    _sideMenu = new QListWidget();
+    // _sideMenu = new QListWidget();
     _chatLayout = new QVBoxLayout();
+    _usersLayout = new QVBoxLayout();
 
-    _textEdit = new QTextEdit();
-    _textEdit->setReadOnly(true);
+    _usersListEdit = new QTextEdit();
+    _usersListEdit->setReadOnly(true);
+
+    _chatContentEdit = new QTextEdit();
+    _chatContentEdit->setReadOnly(true);
 
     //_chat = new QListWidget();
     _input = new QLineEdit();
@@ -91,24 +106,23 @@ void Client::show() {
 
     _sendButton = new QPushButton("Send");
 
-    // write the message to the chat
-    _textEdit->setText(message);
-
-    _chatLayout->addWidget(_textEdit);
+    _chatLayout->addWidget(_chatContentEdit);
     _chatLayout->addWidget(_input);
     _chatLayout->addWidget(_sendButton);
+
+    _usersLayout->addWidget(_usersListEdit);
 
     QObject::connect(_sendButton, &QPushButton::clicked, this, [this]() {
         sendMessage(_input->text().toStdString());
         _input->clear();
     });
 
-
   // Set layout
-    _mainLayout->addWidget(_sideMenu, 1);
+    _mainLayout->addLayout(_usersLayout, 1);
     _mainLayout->addLayout(_chatLayout, 2);
     _window->setLayout(_mainLayout);
 
+    _windowInitialized = true;
     // Show window
     _window->show();
 }
@@ -130,33 +144,54 @@ Client::~Client() {
 }
 
 void Client::sendMessage(const std::string &message) {
-    std::string messageType = (message[0] == '/') ? COMMAND_MESSAGE : SIMPLE_MESSAGE;
-    std::string binaryMessage = BinaryProtocol::encode((messageType == SIMPLE_MESSAGE) ? std::string("/msg ") + std::to_string(0) + " " + message : message, messageType);
+  std::string messageType = (message[0] == '/') ? COMMAND_MESSAGE : SIMPLE_MESSAGE;
+  std::string binaryMessage = BinaryProtocol::encode((messageType == SIMPLE_MESSAGE) ? std::string("/msg ") + std::to_string(0) + " " + message : message, messageType);
 
-    send(_socket, binaryMessage.c_str(), binaryMessage.size(), 0);
+  send(_socket, binaryMessage.c_str(), binaryMessage.size(), 0);
+}
+
+void Client::_parseCommand(const std::string &message, const std::string &header)
+{
+  if (header == LIST_USERS) {
+    std::vector<std::string> users = Utils::split(message, ' ');
+
+    // QMetaObject::invokeMethod(_chatContentEdit, "append", Qt::QueuedConnection, Q_ARG(QString, "Users online:"));
+  }
 }
 
 std::string Client::receiveMessage() {
   char buffer[1024] = {0};
   std::string decodedMessage = "";
+  std::string messageType = "";
   std::string tmp = "";
 
+  while (!_windowInitialized) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
   while (_running) {
     _message = new char[1024];
     int bytesReceived = recv(_socket, buffer, sizeof(buffer) - 1, 0);
 
     if (bytesReceived > 0) {
-        buffer[bytesReceived] = '\0';
+      buffer[bytesReceived] = '\0';
 
-        decodedMessage = BinaryProtocol::decode(std::string(buffer));
-        std::cout << "Decoded message: " << decodedMessage << std::endl;
+      messageType = BinaryProtocol::getHeader(std::string(buffer));
+      decodedMessage = BinaryProtocol::decode(std::string(buffer));
+      std::cout << "Decoded message: " << decodedMessage << std::endl;
 
-        _message = (char *)memcpy(_message, decodedMessage.c_str(), sizeof(buffer));
-        std::cout << "Server: " << _message << std::endl;
-        tmp = std::string(_message);
-        QMetaObject::invokeMethod(_textEdit, "append",
+      _message = (char *)memcpy(_message, decodedMessage.c_str(), sizeof(buffer));
+      std::cout << "Server: " << _message << std::endl;
+      tmp = std::string(_message);
+
+      if (messageType == SIMPLE_MESSAGE) {
+        QMetaObject::invokeMethod(_chatContentEdit, "append",
           Qt::QueuedConnection,
           Q_ARG(QString, QString::fromStdString(decodedMessage)));
+      } else if (messageType == LIST_USERS){
+        QMetaObject::invokeMethod(_usersListEdit, "setText",
+          Qt::QueuedConnection,
+          Q_ARG(QString, QString::fromStdString(decodedMessage)));
+      }
 
     } else if (bytesReceived == 0) {
         std::cout << "Server disconnected!" << std::endl;
@@ -170,34 +205,38 @@ std::string Client::receiveMessage() {
 }
 
 void Client::login() {
-    std::string username;
-    std::string encodedMessage = "";
+  std::string username;
+  std::string encodedMessage = "";
 
-    std::cout << "Username: ";
-    std::cin >> username;
-    std::string cmd = std::string("/login ") + username;
+  std::cout << "Username: ";
+  std::cin >> username;
+  std::string cmd = std::string("/login ") + username;
 
-    encodedMessage = BinaryProtocol::encode(cmd, COMMAND_MESSAGE);
-    std::cout << "Encoded message: " << encodedMessage << std::endl;
-    std::cout << "Decoded message: " << BinaryProtocol::decode(encodedMessage) << std::endl;
-    sendMessage(BinaryProtocol::encode(encodedMessage, COMMAND_MESSAGE));
+  encodedMessage = BinaryProtocol::encode(cmd, COMMAND_MESSAGE);
+  std::cout << "Encoded message: " << encodedMessage << std::endl;
+  std::cout << "Decoded message: " << BinaryProtocol::decode(encodedMessage) << std::endl;
+  sendMessage(BinaryProtocol::encode(encodedMessage, COMMAND_MESSAGE));
 }
 
 void Client::run() {
-    std::string message;
+  std::string message;
 
-    while (true) {
-        std::cout << "You: ";
-        std::getline(std::cin, message);
-        sendMessage(message);
-    }
+  while (true) {
+    std::cout << "You: ";
+    std::getline(std::cin, message);
+    sendMessage(message);
+  }
 }
 
-void Client::addItemToSideMenu(QString item) {
-  _sideMenu->addItem(item);
+void Client::addItemToSideMenu(const std::string &item)
+{
+  QMetaObject::invokeMethod(_usersListEdit, "setText",
+    Qt::QueuedConnection,
+    Q_ARG(QString, QString::fromStdString(item)));
 }
 
-void Client::addMessageToChat(QString message) {
+void Client::addMessageToChat(QString message)
+{
 
-  _textEdit->setText(message);
+  _chatContentEdit->setText(message);
 }

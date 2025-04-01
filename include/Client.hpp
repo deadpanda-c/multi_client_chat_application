@@ -32,6 +32,8 @@
 #include <QLineEdit>
 #include <QTextEdit>
 
+#include "Utils.hpp"
+
 #define CONNECTION_FAILED "Connection failed"
 #define SOCKET_CREATION_FAILED "Socket creation failed"
 
@@ -55,37 +57,41 @@ class Client : public QWidget {
     Client(const std::string& serverIp, unsigned short port, const std::string &title);
     virtual ~Client();
 
+    std::vector<std::string> initCommands();
     void sendMessage(const std::string& message);
     std::string receiveMessage();
     void run();
     void login();
     void initGraphical();
     void show();
-    void addItemToSideMenu(QString item);
+    void addItemToSideMenu(const std::string &item);
     void addMessageToChat(QString message);
 
   private:
+    void _parseCommand(const std::string& message, const std::string &header);
     QWidget *_window;
-    QListWidget *_sideMenu;
-    //QListWidget *_chat;
 
     QHBoxLayout *_mainLayout;
     QVBoxLayout *_chatLayout;
+    QVBoxLayout *_usersLayout;
     QLineEdit *_input;
-    QTextEdit *_textEdit;
+    QTextEdit *_chatContentEdit;
+    QTextEdit *_usersListEdit;
     QPushButton *_sendButton;
 
     std::vector<QWidget*> widgets;
-    void _parseMessage(const std::string& message, const std::string &type);
     std::string _serverIp;
     unsigned short _port;
     int _socket;
     std::atomic<bool> _running;
+    bool _windowInitialized;
     std::thread _receiver;
     std::thread _graphical;
     struct sockaddr_in _serverAddr;
     // message from server
     std::atomic<char *> _message;
+
+    std::vector<std::string> _availableCommands;
 
     #ifdef _WIN32
         WSADATA _wsa;
