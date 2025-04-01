@@ -77,10 +77,9 @@ void Client::show() {
     _window->setFixedSize(800, 600);
 
     // Layout setup
-    _sideMenu = new QListWidget();
     _mainLayout = new QHBoxLayout();
+    _sideMenu = new QListWidget();
     _chatLayout = new QVBoxLayout();
-
 
     _textEdit = new QTextEdit();
     _textEdit->setReadOnly(true);
@@ -138,7 +137,8 @@ void Client::sendMessage(const std::string &message) {
 
 std::string Client::receiveMessage() {
   char buffer[1024] = {0};
-  std::string decodedMessage;
+  std::string decodedMessage = "";
+  std::string tmp = "";
 
   while (_running) {
     _message = new char[1024];
@@ -151,6 +151,11 @@ std::string Client::receiveMessage() {
 
         _message = (char *)memcpy(_message, decodedMessage.c_str(), sizeof(buffer));
         std::cout << "Server: " << _message << std::endl;
+        tmp = std::string(_message);
+        QMetaObject::invokeMethod(_textEdit, "append",
+          Qt::QueuedConnection,
+          Q_ARG(QString, QString::fromStdString(decodedMessage)));
+        //addMessageToChat(QString::fromStdString(tmp));
 
     } else if (bytesReceived == 0) {
         std::cout << "Server disconnected!" << std::endl;
@@ -185,4 +190,13 @@ void Client::run() {
         std::getline(std::cin, message);
         sendMessage(message);
     }
+}
+
+void Client::addItemToSideMenu(QString item) {
+  _sideMenu->addItem(item);
+}
+
+void Client::addMessageToChat(QString message) {
+
+  _textEdit->setText(message);
 }

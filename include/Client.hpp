@@ -61,7 +61,8 @@ class Client : public QWidget {
     void login();
     void initGraphical();
     void show();
-    void addItemToSideMenu(QString message, QString type);
+    void addItemToSideMenu(QString item);
+    void addMessageToChat(QString message);
 
   private:
     QWidget *_window;
