@@ -89,12 +89,10 @@ void Client::show() {
 
     // Layout setup
     _mainLayout = new QHBoxLayout();
-    // _sideMenu = new QListWidget();
     _chatLayout = new QVBoxLayout();
     _usersLayout = new QVBoxLayout();
 
-    _usersListEdit = new QTextEdit();
-    _usersListEdit->setReadOnly(true);
+    _usersList = new QListWidget();
 
     _chatContentEdit = new QTextEdit();
     _chatContentEdit->setReadOnly(true);
@@ -110,7 +108,7 @@ void Client::show() {
     _chatLayout->addWidget(_input);
     _chatLayout->addWidget(_sendButton);
 
-    _usersLayout->addWidget(_usersListEdit);
+    _usersLayout->addWidget(_usersList);
 
     QObject::connect(_sendButton, &QPushButton::clicked, this, [this]() {
         sendMessage(_input->text().toStdString());
@@ -150,13 +148,21 @@ void Client::sendMessage(const std::string &message) {
   send(_socket, binaryMessage.c_str(), binaryMessage.size(), 0);
 }
 
-void Client::_parseCommand(const std::string &message, const std::string &header)
-{
-  if (header == LIST_USERS) {
-    std::vector<std::string> users = Utils::split(message, ' ');
 
-    // QMetaObject::invokeMethod(_chatContentEdit, "append", Qt::QueuedConnection, Q_ARG(QString, "Users online:"));
-  }
+void Client::_parseCommand(const std::string &message, const std::string &header) {
+    if (header == LIST_USERS) {
+        std::vector<std::string> users = Utils::split(message, ' ');
+
+        // Clear the list before updating (to avoid duplicates)
+        QMetaObject::invokeMethod(_usersList, "clear", Qt::QueuedConnection);
+
+        // Add each user as a new item in the list
+        for (const auto& user : users) {
+          QMetaObject::invokeMethod(_usersList, [this, user]() {
+              _usersList->addItem(QString::fromStdString(user));
+          }, Qt::QueuedConnection);
+        }
+    }
 }
 
 std::string Client::receiveMessage() {
@@ -188,9 +194,7 @@ std::string Client::receiveMessage() {
           Qt::QueuedConnection,
           Q_ARG(QString, QString::fromStdString(decodedMessage)));
       } else if (messageType == LIST_USERS){
-        QMetaObject::invokeMethod(_usersListEdit, "setText",
-          Qt::QueuedConnection,
-          Q_ARG(QString, QString::fromStdString(decodedMessage)));
+        _parseCommand(decodedMessage, LIST_USERS);
       }
 
     } else if (bytesReceived == 0) {
@@ -228,12 +232,6 @@ void Client::run() {
   }
 }
 
-void Client::addItemToSideMenu(const std::string &item)
-{
-  QMetaObject::invokeMethod(_usersListEdit, "setText",
-    Qt::QueuedConnection,
-    Q_ARG(QString, QString::fromStdString(item)));
-}
 
 void Client::addMessageToChat(QString message)
 {

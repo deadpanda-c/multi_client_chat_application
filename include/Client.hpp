@@ -74,6 +74,8 @@ class Client : public QWidget {
     QHBoxLayout *_mainLayout;
     QVBoxLayout *_chatLayout;
     QVBoxLayout *_usersLayout;
+    QListWidget *_usersList;
+
     QLineEdit *_input;
     QTextEdit *_chatContentEdit;
     QTextEdit *_usersListEdit;
