@@ -52,6 +52,11 @@ Client::Client(const std::string &serverIp, unsigned short port, const std::stri
         getsockopt(_socket, SOL_SOCKET, SO_ERROR, (void *)&error, &len);
         if (error == 0) {
             std::cout << "Connected to server!" << std::endl;
+            login();
+            std::cout << "Logged in as " << _username << std::endl;
+            // Send login message
+            std::string loginMessage = BinaryProtocol::encode(_username, LOGIN);
+            send(_socket, loginMessage.c_str(), loginMessage.size(), 0);
             break;
         } else if (error != EINPROGRESS && error != EWOULDBLOCK) {
             std::cerr << "Connection failed: " << strerror(error) << std::endl;
@@ -97,10 +102,8 @@ void Client::show() {
     _chatContentEdit = new QTextEdit();
     _chatContentEdit->setReadOnly(true);
 
-    //_chat = new QListWidget();
     _input = new QLineEdit();
     _input->setPlaceholderText("Type your message here...");
-    //_chatLayout->addWidget(_chat);
 
     _sendButton = new QPushButton("Send");
 
@@ -115,13 +118,15 @@ void Client::show() {
         _input->clear();
     });
 
-  // Set layout
+    QObject::connect(_usersList, &QListWidget::itemClicked, this, &Client::onUserClick);
+
+    // Set layout
     _mainLayout->addLayout(_usersLayout, 1);
     _mainLayout->addLayout(_chatLayout, 2);
     _window->setLayout(_mainLayout);
 
-    _windowInitialized = true;
     // Show window
+    _windowInitialized = true;
     _window->show();
 }
 
@@ -149,20 +154,25 @@ void Client::sendMessage(const std::string &message) {
 }
 
 
-void Client::_parseCommand(const std::string &message, const std::string &header) {
-    if (header == LIST_USERS) {
-        std::vector<std::string> users = Utils::split(message, ' ');
+void Client::_displayConnectedUsers(const std::string &message, const std::string &header) {
+  std::vector<std::string> users = Utils::split(message, '\n');
 
-        // Clear the list before updating (to avoid duplicates)
-        QMetaObject::invokeMethod(_usersList, "clear", Qt::QueuedConnection);
+  // Clear the list before updating (to avoid duplicates)
+  QMetaObject::invokeMethod(_usersList, "clear", Qt::QueuedConnection);
 
-        // Add each user as a new item in the list
-        for (const auto& user : users) {
-          QMetaObject::invokeMethod(_usersList, [this, user]() {
-              _usersList->addItem(QString::fromStdString(user));
-          }, Qt::QueuedConnection);
-        }
-    }
+  // Add each user as a new item in the list
+  for (const auto& user : users) {
+    QMetaObject::invokeMethod(_usersList, [this, user]() {
+        _usersList->addItem(QString::fromStdString(user));
+    }, Qt::QueuedConnection);
+  }
+}
+
+void Client::onUserClick(QListWidgetItem *item) {
+  if (item == nullptr) {
+    return;
+  }
+  std::cout << "Clicked on " << item->text().toStdString() << std::endl;
 }
 
 std::string Client::receiveMessage() {
@@ -194,7 +204,7 @@ std::string Client::receiveMessage() {
           Qt::QueuedConnection,
           Q_ARG(QString, QString::fromStdString(decodedMessage)));
       } else if (messageType == LIST_USERS){
-        _parseCommand(decodedMessage, LIST_USERS);
+        _displayConnectedUsers(decodedMessage, LIST_USERS);
       }
 
     } else if (bytesReceived == 0) {
@@ -209,17 +219,13 @@ std::string Client::receiveMessage() {
 }
 
 void Client::login() {
-  std::string username;
-  std::string encodedMessage = "";
-
-  std::cout << "Username: ";
-  std::cin >> username;
-  std::string cmd = std::string("/login ") + username;
-
-  encodedMessage = BinaryProtocol::encode(cmd, COMMAND_MESSAGE);
-  std::cout << "Encoded message: " << encodedMessage << std::endl;
-  std::cout << "Decoded message: " << BinaryProtocol::decode(encodedMessage) << std::endl;
-  sendMessage(BinaryProtocol::encode(encodedMessage, COMMAND_MESSAGE));
+  _username = std::string(
+#ifdef _WIN32
+      getenv("USERNAME")
+#else
+      getenv("USER")
+#endif
+      );
 }
 
 void Client::run() {
