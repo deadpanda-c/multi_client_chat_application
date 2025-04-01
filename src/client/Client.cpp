@@ -86,6 +86,7 @@ void Client::show() {
 
     //_chat = new QListWidget();
     _input = new QLineEdit();
+    _input->setPlaceholderText("Type your message here...");
     //_chatLayout->addWidget(_chat);
 
     _sendButton = new QPushButton("Send");
@@ -130,7 +131,7 @@ Client::~Client() {
 
 void Client::sendMessage(const std::string &message) {
     std::string messageType = (message[0] == '/') ? COMMAND_MESSAGE : SIMPLE_MESSAGE;
-    std::string binaryMessage = BinaryProtocol::encode((messageType == SIMPLE_MESSAGE) ? std::string("/msg ") + message : message, messageType);
+    std::string binaryMessage = BinaryProtocol::encode((messageType == SIMPLE_MESSAGE) ? std::string("/msg ") + std::to_string(0) + " " + message : message, messageType);
 
     send(_socket, binaryMessage.c_str(), binaryMessage.size(), 0);
 }
@@ -148,6 +149,7 @@ std::string Client::receiveMessage() {
         buffer[bytesReceived] = '\0';
 
         decodedMessage = BinaryProtocol::decode(std::string(buffer));
+        std::cout << "Decoded message: " << decodedMessage << std::endl;
 
         _message = (char *)memcpy(_message, decodedMessage.c_str(), sizeof(buffer));
         std::cout << "Server: " << _message << std::endl;
@@ -155,7 +157,6 @@ std::string Client::receiveMessage() {
         QMetaObject::invokeMethod(_textEdit, "append",
           Qt::QueuedConnection,
           Q_ARG(QString, QString::fromStdString(decodedMessage)));
-        //addMessageToChat(QString::fromStdString(tmp));
 
     } else if (bytesReceived == 0) {
         std::cout << "Server disconnected!" << std::endl;
