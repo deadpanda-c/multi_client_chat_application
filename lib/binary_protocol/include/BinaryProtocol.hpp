@@ -19,20 +19,37 @@ class BinaryProtocol {
 
       for (char c : message)
         payload += std::bitset<8>(c).to_string();
+
       return header + size + payload;
     }
 
+    static std::string getSize(const std::string &message)
+    {
+      return message.substr(8, 32);
+    }
+
+
     static std::string decode(const std::string &message)
     {
-      std::string header = message.substr(0, 8);
-      std::string size = message.substr(8, 32);
-      std::string payload = "";
+        if (message.size() < 40) {
+            return "";
+        }
 
-      for (int i = 40; i < message.size(); i += 8) {
-        std::string byte = message.substr(i, 8);
-        payload += static_cast<char>(std::bitset<8>(byte).to_ulong());
-      }
-      return payload;
+        std::string header = message.substr(0, 8);
+        std::string sizeBits = message.substr(8, 32);
+        int messageSize = std::bitset<32>(sizeBits).to_ulong();
+
+        if (message.size() < 40 + messageSize * 8) {
+            return "";
+        }
+
+        std::string payload = "";
+        for (int i = 40; i < 40 + messageSize * 8; i += 8) {
+            std::string byte = message.substr(i, 8);
+            payload += static_cast<char>(std::bitset<8>(byte).to_ulong());
+        }
+
+        return payload;
     }
 
     // get the header of the message to detect the type of the message

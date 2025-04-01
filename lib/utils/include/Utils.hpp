@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <ctime>
 
 class Utils {
   public:
@@ -28,5 +29,15 @@ class Utils {
           result += delim;
       }
       return result;
+    }
+
+    static std::string getCurrentTime()
+    {
+      time_t now = time(0);
+      struct tm tstruct;
+      char buf[80];
+      tstruct = *localtime(&now);
+      strftime(buf, sizeof(buf), "%Y-%m-%d %X", &tstruct);
+      return buf;
     }
 };

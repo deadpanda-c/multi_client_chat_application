@@ -13,6 +13,9 @@
 #include <sys/select.h>
 #include <stdbool.h>
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <thread>
 
 #define MAX_CLIENTS 10
 #define MAX_BUFFER_SIZE 1024
@@ -25,6 +28,9 @@
 #define INVALID_CLIENT_FD "Invalid client file descriptor"
 #define SOCKET_FD_IN_CLIENTS "Socket file descriptor in client"
 #define SOCKET_OPT_FAILED "Failed to set socket options"
+
+#define DB_PATH "../db/"
+#define MESSAGES_FOLDER(name) DB_PATH + name + "/messages/"
 
 class Server {
   public:
@@ -44,6 +50,11 @@ class Server {
 
       void init();
       void initCommands();
+
+      void initDatabase();
+      void loadDatabase();
+      void saveClientToDatabase(int client, const std::string& name);
+
       void run();
       void stop();
 
@@ -68,7 +79,7 @@ class Server {
 
       std::map<std::string, void (Server::*)(int, const std::string&)> _commands;
       std::map<int, std::string> _clientsNames;
-      std::vector<int> _loggedInClients;
+      std::vector<std::string> _loggedInClients;
       std::vector<int> _clients;
       int _socket;
       int _maxClients;

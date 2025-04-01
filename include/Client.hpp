@@ -21,6 +21,7 @@
 #include <atomic>
 #include <exception>
 #include <cstdlib>
+#include <unordered_set>
 
 #include <QObject>
 #include <QListWidget>
@@ -60,19 +61,18 @@ class Client : public QWidget {
 
     std::vector<std::string> initCommands();
     void sendMessage(const std::string& message);
-    std::string receiveMessage();
-    void run();
+    void receiveMessage();
     void login();
     void initGraphical();
     void show();
-    void addItemToSideMenu(const std::string &item);
-    void addMessageToChat(QString message);
+    void processIncomingData(std::string &buffer);
 
   private slots:
     void onUserClick(QListWidgetItem *item);
 
   private:
     void _displayConnectedUsers(const std::string& message, const std::string &header);
+    void _displayMessage(const std::string &message);
     QWidget *_window;
 
     QHBoxLayout *_mainLayout;
@@ -91,12 +91,15 @@ class Client : public QWidget {
     unsigned short _port;
     int _socket;
     std::atomic<bool> _running;
+    bool _connected;
     bool _windowInitialized;
     std::thread _receiver;
     std::thread _graphical;
     struct sockaddr_in _serverAddr;
     // message from server
     std::atomic<char *> _message;
+    std::string _header;
+    int _messageSize;
 
     std::vector<std::string> _availableCommands;
 

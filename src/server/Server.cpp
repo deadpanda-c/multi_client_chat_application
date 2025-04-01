@@ -65,10 +65,16 @@ void Server::commandList(int client, const std::string &message)
   (void)message; // unused
 
   std::string listMessage = "";
+
+  if (_clientsNames.size() == 0) {
+    Logging::LogWarning("No clients connected");
+    return;
+  }
   for (auto client : _clients) {
-    listMessage += _clientsNames[client] + "\n";
+    listMessage += _clientsNames[client] + ",";
   }
 
+  std::cout << "List message: [" << listMessage << "]" << std::endl;
   sendToClient(client, BinaryProtocol::encode(listMessage, LIST_USERS));
 }
 
@@ -79,14 +85,18 @@ void Server::clientLogin(int client, const std::string &name)
 
   count = std::count(_loggedInClients.begin(), _loggedInClients.end(), name);
 
-  new_name = (count > 0) ? name + std::to_string(count - 1) : name;
+  new_name = (count > 0) ? name + std::to_string(count) : name;
   _clientsNames[client] = (_checkIfLoggedIn(client, name)) ? new_name : name;
+
   _loggedInClients.push_back(new_name);
 
-  Logging::Log("Client logged in: " + _clientsNames[client]);
+  Logging::Log("Client logged in: [" + _clientsNames[client] + "]");
   sendToClient(client, BinaryProtocol::encode(_clientsNames[client], LOGIN));
-  for (auto client : _clients)
+  // std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  for (auto client : _clients) {
+    Logging::Log("=============> Logged File descriptor " + std::to_string(client));
     commandList(client, "");
+  }
 
   saveClientToDatabase(client, _clientsNames[client]);
 }
@@ -180,7 +190,9 @@ void Server::readFromClients()
       if (valread == 0) {
           Logging::LogWarning("Client disconnected: " + std::to_string(client));
           removeClient(client);
-          it = _clients.erase(it);
+
+          for (auto client : _loggedInClients)
+            Logging::Log("Logged in clients: " + client);
       } else {
           // Logging::Log("Message from " + std::to_string(client) + ": " + std::string(BinaryProtocol::decode(buffer)));
           _interpretMessage(client, buffer);
@@ -238,6 +250,7 @@ void Server::addClient(int client)
 {
   _clients.push_back(client);
   Logging::Log("Client added, total clients: " + std::to_string(_clients.size()));
+
 }
 
 void Server::removeClient(int client)
@@ -246,7 +259,19 @@ void Server::removeClient(int client)
     FD_CLR(client, &_exceptFds);
 
     close(client);
-    Logging::Log("Client removed: " + std::to_string(client));
+
+    if (_loggedInClients.size() > 0)
+      _loggedInClients.erase(std::remove(_loggedInClients.begin(), _loggedInClients.end(), _clientsNames[client]), _loggedInClients.end());
+
+
+    if (_clientsNames.find(client) != _clientsNames.end())
+      _clientsNames.erase(client);
+
+    if (_clients.size() > 0)
+      _clients.erase(std::remove(_clients.begin(), _clients.end(), client), _clients.end());
+
+    Logging::Log("Client removed, total clients: " + std::to_string(_clients.size()));
+
 }
 
 void Server::broadcast(const std::string &message)
@@ -271,7 +296,6 @@ void Server::_interpretMessage(int client, const std::string &message)
 
   Logging::Log("Header: " + header);
   std::string body = BinaryProtocol::decode(message);
-  std::cout << "BODY: " << body << std::endl;
 
   for (auto command : _commands) {
     if (header == command.first) {
