@@ -70,25 +70,32 @@ Client::Client(const std::string &serverIp, unsigned short port, const std::stri
 }
 
 void Client::show() {
+  QString message = "Hello, World!";
+  // Window setup
     _window = new QWidget();
     _window->setWindowTitle("Chat Client");
     _window->setFixedSize(800, 600);
+
+    // Layout setup
     _sideMenu = new QListWidget();
     _mainLayout = new QHBoxLayout();
-
     _chatLayout = new QVBoxLayout();
 
-    _mainLayout->addLayout(_chatLayout);
-    _window->setLayout(_mainLayout);
 
     _textEdit = new QTextEdit();
     _textEdit->setReadOnly(true);
-    _chatLayout->addWidget(_textEdit);
 
+    //_chat = new QListWidget();
     _input = new QLineEdit();
-    _chatLayout->addWidget(_input);
+    //_chatLayout->addWidget(_chat);
 
     _sendButton = new QPushButton("Send");
+
+    // write the message to the chat
+    _textEdit->setText(message);
+
+    _chatLayout->addWidget(_textEdit);
+    _chatLayout->addWidget(_input);
     _chatLayout->addWidget(_sendButton);
 
     QObject::connect(_sendButton, &QPushButton::clicked, this, [this]() {
@@ -96,6 +103,13 @@ void Client::show() {
         _input->clear();
     });
 
+
+  // Set layout
+    _mainLayout->addWidget(_sideMenu, 1);
+    _mainLayout->addLayout(_chatLayout, 2);
+    _window->setLayout(_mainLayout);
+
+    // Show window
     _window->show();
 }
 

@@ -66,7 +66,7 @@ class Client : public QWidget {
   private:
     QWidget *_window;
     QListWidget *_sideMenu;
-    // QListWidget *chat;
+    //QListWidget *_chat;
 
     QHBoxLayout *_mainLayout;
     QVBoxLayout *_chatLayout;
