@@ -17,4 +17,16 @@ class Utils {
         result.push_back(item);
       return result;
     }
+
+    static std::string join(const std::vector<std::string> &v, const std::string &delim)
+    {
+      std::string result = "";
+
+      for (size_t i = 0; i < v.size(); i++) {
+        result += v[i];
+        if (i < v.size() - 1)
+          result += delim;
+      }
+      return result;
+    }
 };
