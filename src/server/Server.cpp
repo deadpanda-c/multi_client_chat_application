@@ -64,34 +64,47 @@ void Server::commandList(int client, const std::string &message)
 
   std::string listMessage = "";
   for (auto client : _clients) {
-    listMessage += std::to_string(client) + " ";
+    listMessage += _clientsNames[client] + "\n";
   }
 
   sendToClient(client, BinaryProtocol::encode(listMessage, LIST_USERS));
 }
 
-void Server::clientLogin(int client, const std::string &message)
+void Server::clientLogin(int client, const std::string &name)
 {
-  std::cout << "Client login: " << message << std::endl;
-  return;
-  std::string body = BinaryProtocol::decode(message);
-  std::cout << "BODY: " << body << std::endl;
-  std::vector<std::string> tokens = Utils::split(body, ' ');
+  _clientsNames[client] = (_checkIfLoggedIn(client, name)) ? name + std::to_string(_loggedInClients.size() + 1) : name;
 
-  std::cout << "Tokens: " << tokens.size() << std::endl;
-  if (tokens.size() != 2) {
-    sendToClient(client, BinaryProtocol::encode("Invalid login command", SIMPLE_MESSAGE));
-    return;
+  Logging::Log("Client logged in: " + name);
+  for (auto client : _clients) {
+    commandList(client, "");
   }
-  _clientNames[client] = tokens[1];
+
+  for (auto name : _clientsNames) {
+    Logging::Log("Client: " + name.second);
+  }
 }
 
 void Server::initCommands()
 {
-  // _commands["/login"] = &Server::clientLogin;
-  _commands["/help"] = &Server::commandHelp;
-  _commands["/list"] = &Server::commandList;
-  // _commands["/msg"] = &Server::sendToClient;
+  _commands[LOGIN] = &Server::clientLogin;
+  _commands[SIMPLE_MESSAGE] = &Server::commandsMessage;
+  _commands[LIST_USERS] = &Server::commandList;
+}
+
+void Server::commandsMessage(int client, const std::string &message)
+{
+  std::vector<std::string> tokens = Utils::split(message, ' ');
+
+  if (tokens.size() < 3) {
+    Logging::LogWarning("Invalid message format: " + message);
+    return;
+  }
+
+//   int targetClient = std::stoi(tokens[1]);
+  //std::string final_message = std::to_string(client) + ": " + tokens[2];
+  std::string final_message = _clientsNames[client] + ": " + Utils::join(std::vector<std::string>(tokens.begin() + 2, tokens.end()), " ");
+  // sendToClient(targetClient, BinaryProtocol::encode(final_message, SIMPLE_MESSAGE));
+  broadcast(final_message);
 }
 
 void Server::_initFdSets()
@@ -180,9 +193,6 @@ void Server::addClient(int client)
   _clients.push_back(client);
   Logging::Log("Client added, total clients: " + std::to_string(_clients.size()));
   // send the list of clients to all clients
-  for (auto client : _clients) {
-    commandList(client, "");
-  }
 }
 
 void Server::removeClient(int client)
@@ -216,45 +226,22 @@ void Server::_interpretMessage(int client, const std::string &message)
 
   Logging::Log("Header: " + header);
   std::string body = BinaryProtocol::decode(message);
-  if (header == SIMPLE_MESSAGE) {
-    Logging::Log("Simple message from " + std::to_string(client) + ": " + body);
-    std::vector<std::string> tokens = Utils::split(body, ' ');
+  std::cout << "BODY: " << body << std::endl;
 
-    if (tokens[0] == "/msg") {
-      std::vector<std::string> result(tokens.begin() + 2, tokens.end());
-
-      for (auto token : result) {
-        std::cout << "Token: " << token << std::endl;
-      }
-      if (tokens.size() < 3) {
-        Logging::LogWarning("Invalid message format: " + body);
-        // return;
-      }
-
-      // targetClient = std::stoi(tokens[1]);
-
-      std::string final_message = std::to_string(client) + ": " + Utils::join(result, " ");
-      // sendToClient(targetClient, BinaryProtocol::encode(final_message, SIMPLE_MESSAGE));
-      broadcast(final_message);
-      Logging::Log("Broadcasting message to " + std::to_string(client) + ": " + final_message);
+  for (auto command : _commands) {
+    if (header == command.first) {
+      (this->*command.second)(client, body);
+      return;
     }
-  } else if (header == COMMAND_MESSAGE) {
-    if (!_checkIfLoggedIn(client, body))
-      clientLogin(client, body);
-    Logging::Log("Command message from " + std::to_string(client) + ": " + body);
-
-    for (auto command : _commands) {
-      if (body.find(command.first) == 0) {
-        (this->*command.second)(client, body);
-        return;
-      }
-    }
-  } else {
-    Logging::LogWarning("Unknown message from " + std::to_string(client) + ": " + body);
   }
 }
-
 bool Server::_checkIfLoggedIn(int client, const std::string &message)
 {
-  return (std::find(_loggedInClients.begin(), _loggedInClients.end(), client) != _loggedInClients.end());
+  for (auto name : _clientsNames) {
+    if (name.second == message) {
+      Logging::LogWarning("Client already logged in: " + message);
+      return true;
+    }
+  }
+  return false;
 }
