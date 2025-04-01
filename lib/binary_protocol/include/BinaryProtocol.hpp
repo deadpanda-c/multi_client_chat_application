@@ -8,6 +8,7 @@
 #define SIMPLE_MESSAGE "00000000"
 #define COMMAND_MESSAGE "00000001"
 #define LIST_USERS "00000010"
+#define LOGIN "00000011"
 
 class BinaryProtocol {
   public:
