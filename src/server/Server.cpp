@@ -195,10 +195,12 @@ void Server::commandsMessage(int client, const std::string &body)
   std::string decoded = BinaryProtocol::decode(body);
   std::vector<std::string> tokens = Utils::split(decoded, ' ');
 
-  if (tokens.size() == 3)
-    broadcast(tokens[2]);
+  if (tokens.size() >= 3) {
+    // send all string after tokens[2]
+    message = Utils::join(std::vector<std::string>(tokens.begin() + 2, tokens.end()), " ");
+    broadcast(_clientsNames[client] + ": " + message);
 
-
+  }
 }
 
 void Server::_initFdSets()
