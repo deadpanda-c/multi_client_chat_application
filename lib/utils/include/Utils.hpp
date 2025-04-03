@@ -6,8 +6,17 @@
 #include <sstream>
 #include <ctime>
 
+/**
+ * @brief Utility class for string manipulation and time formatting.
+ */
 class Utils {
   public:
+    /**
+     * @brief Splits a string into a vector of strings based on a delimiter.
+     * @param s The string to split.
+     * @param delim The delimiter character.
+     * @return A vector of strings.
+     */
     static std::vector<std::string> split(const std::string &s, char delim)
     {
       std::vector<std::string> result;
@@ -19,6 +28,12 @@ class Utils {
       return result;
     }
 
+    /**
+     * @brief Joins a vector of strings into a single string with a delimiter.
+     * @param v The vector of strings to join.
+     * @param delim The delimiter string.
+     * @return A single string.
+     */
     static std::string join(const std::vector<std::string> &v, const std::string &delim)
     {
       std::string result = "";
@@ -31,6 +46,10 @@ class Utils {
       return result;
     }
 
+    /**
+     * @brief Converts a string to lowercase.
+     * @return The lowercase string.
+     */
     static std::string getCurrentTime()
     {
       time_t now = time(0);
