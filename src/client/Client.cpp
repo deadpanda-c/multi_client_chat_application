@@ -185,8 +185,22 @@ void Client::onUserClick(QListWidgetItem *item)
   if (item == nullptr) {
     return;
   }
+
   std::cout << "Clicked on " << item->text().toStdString() << std::endl;
-  sendMessage("/msg " + item->text().toStdString());
+  std::string cmd = "/msg " + item->text().toStdString();
+
+  // copy the username to a new string
+  _currentPrivateUser = new char[cmd.size() + 1];
+  memcpy(_currentPrivateUser, cmd.c_str(), cmd.size());
+
+  std::cout << "Private user: " << _currentPrivateUser << std::endl;
+  std::string encodedCmd = BinaryProtocol::encode(cmd, SIMPLE_MESSAGE);
+  std::cout << "Encoded command: " << encodedCmd << std::endl;
+
+  send(_socket, encodedCmd.c_str(), encodedCmd.size(), 0); 
+
+  delete _currentPrivateUser;
+  _currentPrivateUser = NULL;
 }
 
 void Client::_displayMessage(const std::string &message)

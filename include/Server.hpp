@@ -71,12 +71,15 @@ class Server {
       void commandList(int client, const std::string& message);
       void clientLogin(int client, const std::string& message);
       void commandsMessage(int client, const std::string& message);
+      void sendPrivateMessage(int client, const std::string &req);
+      int getClientFileDescriptor(const std::string& name);
 
   private:
       void _initFdSets();
       void _interpretMessage(int client, const std::string& message);
       bool _checkIfLoggedIn(int client, const std::string& message);
 
+      std::map<int, int> _clientsPrivateMessagesIndex;
       std::map<std::string, void (Server::*)(int, const std::string&)> _commands;
       std::map<int, std::string> _clientsNames;
       std::vector<std::string> _loggedInClients;

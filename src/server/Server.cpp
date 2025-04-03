@@ -60,9 +60,9 @@ void Server::commandHelp(int client, const std::string &message)
   sendToClient(client, BinaryProtocol::encode(helpMessage, SIMPLE_MESSAGE));
 }
 
-void Server::commandList(int client, const std::string &message)
+void Server::commandList(int client, const std::string &body)
 {
-  (void)message; // unused
+  (void)body; // Unused parameter
 
   std::string listMessage = "";
 
@@ -78,8 +78,10 @@ void Server::commandList(int client, const std::string &message)
   sendToClient(client, BinaryProtocol::encode(listMessage, LIST_USERS));
 }
 
-void Server::clientLogin(int client, const std::string &name)
+void Server::clientLogin(int client, const std::string &body)
 {
+  std::string name = BinaryProtocol::decode(body);
+
   int count = 0;
   std::string new_name = "";
 
@@ -92,7 +94,6 @@ void Server::clientLogin(int client, const std::string &name)
 
   Logging::Log("Client logged in: [" + _clientsNames[client] + "]");
   sendToClient(client, BinaryProtocol::encode(_clientsNames[client], LOGIN));
-  // std::this_thread::sleep_for(std::chrono::milliseconds(10));
   for (auto client : _clients) {
     Logging::Log("=============> Logged File descriptor " + std::to_string(client));
     commandList(client, "");
@@ -142,25 +143,62 @@ void Server::saveClientToDatabase(int client, const std::string &name)
   }
 }
 
-void Server::commandsMessage(int client, const std::string &message)
+int Server::getClientFileDescriptor(const std::string &clientName)
 {
-  std::vector<std::string> tokens = Utils::split(message, ' ');
+  for (auto client : _clientsNames) {
+    if (client.second == clientName) {
+      return client.first;
+    }
+  }
+  Logging::LogWarning("Client not found");
+  return -1;
+}
 
-  if (tokens.size() < 3 && tokens.size() != 2) {
-    Logging::LogWarning("Invalid message format: " + message);
+void Server::sendPrivateMessage(int client, const std::string &decoded)
+{
+  // check for message history in database
+  std::vector<std::string> tokens = Utils::split(decoded, ' ');
+  std::string target = tokens[1];
+  std::string message = (tokens.size() == 3) ? tokens[2] : "";
+  std::string to = MESSAGES_FOLDER(_clientsNames[client]) + target + ".txt";
+  int to_Target = getClientFileDescriptor(target);
+
+  if (to_Target == -1) {
+    Logging::LogWarning("Target client not found");
     return;
   }
 
-  if (tokens.size() == 2) {
-    Logging::LogWarning(_clientsNames[client] + " want to communicate with " + tokens[1]);
-    return;
+  _clientsPrivateMessagesIndex[client] = getClientFileDescriptor(target);
+
+  // search for a file with the target name
+  if (!std::filesystem::is_directory(MESSAGES_FOLDER(_clientsNames[client]) + target)) {
+    Logging::LogWarning("Target client not found");
   }
 
-//   int targetClient = std::stoi(tokens[1]);
-  //std::string final_message = std::to_string(client) + ": " + tokens[2];
-  std::string final_message = _clientsNames[client] + ": " + Utils::join(std::vector<std::string>(tokens.begin() + 2, tokens.end()), " ");
-  // sendToClient(targetClient, BinaryProtocol::encode(final_message, SIMPLE_MESSAGE));
-  broadcast(final_message);
+  std::cout << "Sending a message to " << target << std::endl;
+  std::cout << "Saving message to " << to << std::endl;
+  std::ofstream file(to, std::ios::app);
+
+  if (message.size() > 0) {
+    file << Utils::getCurrentTime() << " " << _clientsNames[client] << ": " << message << std::endl;
+    file.close();
+  }
+  sendToClient(to_Target, BinaryProtocol::encode(_clientsNames[client] + ": " + message, SIMPLE_MESSAGE));
+}
+
+void Server::commandsMessage(int client, const std::string &body)
+{
+  Logging::Log("MESSAGE FROM CLIENT: " + std::to_string(client));
+  Logging::Log("Message: " + BinaryProtocol::decode(body));
+  std::string message = "";
+
+  std::string decoded = BinaryProtocol::decode(body);
+  std::vector<std::string> tokens = Utils::split(decoded, ' ');
+
+  if (tokens.size() == 3)
+    broadcast(tokens[2]);
+
+
 }
 
 void Server::_initFdSets()
@@ -271,7 +309,6 @@ void Server::removeClient(int client)
       _clients.erase(std::remove(_clients.begin(), _clients.end(), client), _clients.end());
 
     Logging::Log("Client removed, total clients: " + std::to_string(_clients.size()));
-
 }
 
 void Server::broadcast(const std::string &message)
@@ -297,9 +334,10 @@ void Server::_interpretMessage(int client, const std::string &message)
   Logging::Log("Header: " + header);
   std::string body = BinaryProtocol::decode(message);
 
+  std::cout << "Body: " << body << std::endl;
   for (auto command : _commands) {
     if (header == command.first) {
-      (this->*command.second)(client, body);
+      (this->*command.second)(client, message);
       return;
     }
   }

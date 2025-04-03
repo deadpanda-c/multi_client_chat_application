@@ -98,6 +98,8 @@ class Client : public QWidget {
     struct sockaddr_in _serverAddr;
     // message from server
     std::atomic<char *> _message;
+    std::atomic<char *> _currentPrivateUser;
+    int _currentPrivateUserIndex;
     std::string _header;
     int _messageSize;
 
