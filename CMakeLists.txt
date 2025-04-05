@@ -29,4 +29,6 @@ target_link_libraries(server PRIVATE server_logging)
 target_link_libraries(server PRIVATE binary_protocol)
 target_link_libraries(server PRIVATE utils)
 
+add_compile_options(server PRIVATE -Wall -Wextra -Werror)
+
 target_link_libraries(client Qt6::Widgets)
