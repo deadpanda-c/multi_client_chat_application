@@ -22,6 +22,7 @@ Server::~Server()
 {
   if (_running)
     this->stop();
+  Logging::Log("Server destroyed");
 }
 
 void Server::init()
@@ -74,7 +75,6 @@ void Server::commandList(int client, const std::string &body)
     listMessage += _clientsNames[client] + ",";
   }
 
-  std::cout << "List message: [" << listMessage << "]" << std::endl;
   sendToClient(client, BinaryProtocol::encode(listMessage, LIST_USERS));
 }
 
@@ -91,11 +91,10 @@ void Server::clientLogin(int client, const std::string &body)
   _clientsNames[client] = (_checkIfLoggedIn(client, name)) ? new_name : name;
 
   _loggedInClients.push_back(new_name);
+  Logging::Log("Client just logged in");
 
-  Logging::Log("Client logged in: [" + _clientsNames[client] + "]");
   sendToClient(client, BinaryProtocol::encode(_clientsNames[client], LOGIN));
   for (auto client : _clients) {
-    Logging::Log("=============> Logged File descriptor " + std::to_string(client));
     commandList(client, "");
   }
 
@@ -164,7 +163,7 @@ void Server::sendPrivateMessage(int client, const std::string &decoded)
   int to_Target = getClientFileDescriptor(target);
 
   if (to_Target == -1) {
-    Logging::LogWarning("Target client not found");
+    Logging::LogError("Target client not found");
     return;
   }
 
@@ -175,8 +174,7 @@ void Server::sendPrivateMessage(int client, const std::string &decoded)
     Logging::LogWarning("Target client not found");
   }
 
-  std::cout << "Sending a message to " << target << std::endl;
-  std::cout << "Saving message to " << to << std::endl;
+  Logging::log("Sending private message to " + target);
   std::ofstream file(to, std::ios::app);
 
   if (message.size() > 0) {
@@ -188,18 +186,14 @@ void Server::sendPrivateMessage(int client, const std::string &decoded)
 
 void Server::commandsMessage(int client, const std::string &body)
 {
-  Logging::Log("MESSAGE FROM CLIENT: " + std::to_string(client));
-  Logging::Log("Message: " + BinaryProtocol::decode(body));
   std::string message = "";
 
   std::string decoded = BinaryProtocol::decode(body);
   std::vector<std::string> tokens = Utils::split(decoded, ' ');
 
   if (tokens.size() >= 3) {
-    // send all string after tokens[2]
     message = Utils::join(std::vector<std::string>(tokens.begin() + 2, tokens.end()), " ");
     broadcast(_clientsNames[client] + ": " + message);
-
   }
 }
 
