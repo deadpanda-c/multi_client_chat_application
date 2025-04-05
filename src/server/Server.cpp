@@ -89,6 +89,7 @@ void Server::clientLogin(int client, const std::string &body)
 
   new_name = (count > 0) ? name + std::to_string(count) : name;
   _clientsNames[client] = (_checkIfLoggedIn(client, name)) ? new_name : name;
+  Logging::Log("Client " + std::to_string(client) + " logged in as " + _clientsNames[client]);
 
   _loggedInClients.push_back(new_name);
   Logging::Log("Client just logged in");
@@ -223,6 +224,8 @@ void Server::readFromClients()
 
       if (valread == 0) {
           Logging::LogWarning("Client disconnected: " + std::to_string(client));
+          broadcast(_clientsNames[client] + " has disconnected");
+
           removeClient(client);
 
           for (auto client : _loggedInClients)
