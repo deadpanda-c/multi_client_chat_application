@@ -6,7 +6,7 @@ This is a C++ socket application that provides network communication functionali
 
 The client can be executed on a Windows machine (I think, i don't have windows, but it should work :) ).
 
-For the server, it's already running on [http://clementlagier.fr:4242](http://clementlagier.fr:4242), but you can still try to use it on your own machine to see the logs (I'm using the `select` syscall, so i think it won't work on Window). 
+For the server, it's already running on [http://51.178.139.114:4242](http://51.178.139.114:4242), but you can still try to use it on your own machine to see the logs (I'm using the `select` syscall, so i think it won't work on Window). 
 
 
 
