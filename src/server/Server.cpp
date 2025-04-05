@@ -174,7 +174,7 @@ void Server::sendPrivateMessage(int client, const std::string &decoded)
     Logging::LogWarning("Target client not found");
   }
 
-  Logging::log("Sending private message to " + target);
+  Logging::Log("Sending private message to " + target);
   std::ofstream file(to, std::ios::app);
 
   if (message.size() > 0) {
