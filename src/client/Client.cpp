@@ -1,5 +1,6 @@
 #include "Client.hpp"
 #include "BinaryProtocol.hpp"
+#include "Logging.hpp"
 
 Client::Client(const std::string &serverIp, unsigned short port, const std::string &title)
     : _serverIp(serverIp), _port(port), _running(true), _message(NULL), _windowInitialized(false)
@@ -7,13 +8,13 @@ Client::Client(const std::string &serverIp, unsigned short port, const std::stri
 #ifdef _WIN32
     WSAStartup(MAKEWORD(2, 2), &_wsa);
 #endif
-  std::cout << "Client created!" << std::endl;
+  Logging::Log("Client created!");
   _availableCommands = initCommands();
   _socket = socket(AF_INET, SOCK_STREAM, 0);
   if (_socket == -1) {
       throw ClientException(SOCKET_CREATION_FAILED);
   }
-  std::cout << "Socket created!" << std::endl;
+  Logging::Log("Socket created!");
 
   _serverAddr.sin_family = AF_INET;
   _serverAddr.sin_port = htons(_port);
@@ -27,7 +28,7 @@ Client::Client(const std::string &serverIp, unsigned short port, const std::stri
     fcntl(_socket, F_SETFL, flags | O_NONBLOCK);
 #endif
 
-  std::cout << "Connecting to server..." << std::endl;
+  Logging::Log("Socket set to non-blocking mode!");
   int result = ::connect(_socket, (struct sockaddr *)&_serverAddr, sizeof(_serverAddr));
 
   if (result == -1) {
@@ -44,7 +45,6 @@ Client::Client(const std::string &serverIp, unsigned short port, const std::stri
       }
 #endif
   }
-  login();
 
   // Wait for connection to complete
   int error = 0;
@@ -53,13 +53,16 @@ Client::Client(const std::string &serverIp, unsigned short port, const std::stri
   while (true) {
     getsockopt(_socket, SOL_SOCKET, SO_ERROR, (void *)&error, &len);
     if (error == 0) {
-      std::cout << "Connected to server!" << std::endl;
+      Logging::Log("Connected to server!");
       // Send login message
+      login();
       std::string loginMessage = BinaryProtocol::encode(_username, LOGIN);
       send(_socket, loginMessage.c_str(), loginMessage.size(), 0);
+      Logging::Log("Login message sent!");
       break;
     } else if (error != EINPROGRESS && error != EWOULDBLOCK) {
       std::cerr << "Connection failed: " << strerror(error) << std::endl;
+      Logging::LogError("Connection failed: " + std::string(strerror(error)));
       throw ClientException(CONNECTION_FAILED);
     }
   }
@@ -86,9 +89,13 @@ std::vector<std::string> Client::initCommands() {
 
 void Client::show() {
   // Window setup
+  Logging::Log("Creating window...");
   _window = new QWidget();
   _window->setWindowTitle("Chat Client");
-  _window->setFixedSize(800, 600);
+  Logging::Log("Window title set!");
+  _window->setFixedSize(WINDOW_WIDTH, WINDOW_HEIGHT);
+  Logging::Log("Window size set! (" + std::to_string(WINDOW_WIDTH) + "x" + std::to_string(WINDOW_HEIGHT) + ")");
+
 
   // Layout setup
   _mainLayout = new QHBoxLayout();
@@ -125,6 +132,7 @@ void Client::show() {
 
   // Show window
   _windowInitialized = true;
+  Logging::Log("Window initialized!");
   _window->show();
 }
 
@@ -132,6 +140,7 @@ Client::~Client()
 {
   _running = false;
 
+  Logging::Log("Closing client...");
   if (_receiver.joinable())
       _receiver.join();
 #ifdef _WIN32
@@ -140,7 +149,7 @@ Client::~Client()
 #else
     ::close(_socket);
 #endif
-    std::cout << "Connection closed!" << std::endl;
+    Logging::Log("Client closed!");
 }
 
 void Client::sendMessage(const std::string &message)
@@ -155,6 +164,7 @@ void Client::sendMessage(const std::string &message)
 
 void Client::_displayConnectedUsers(const std::string &message, const std::string &header)
 {
+  Logging::Log("Displaying connected users...");
   std::vector<std::string> users = Utils::split(message, ',');
 
   QMetaObject::invokeMethod(_usersList, [this, users]() {
@@ -186,19 +196,17 @@ void Client::onUserClick(QListWidgetItem *item)
     return;
   }
 
-  std::cout << "Clicked on " << item->text().toStdString() << std::endl;
+  Logging::Log("User clicked: " + item->text().toStdString());
   std::string cmd = "/msg " + item->text().toStdString();
 
   // copy the username to a new string
   _currentPrivateUser = new char[cmd.size() + 1];
   memcpy(_currentPrivateUser, cmd.c_str(), cmd.size());
 
-  std::cout << "Private user: " << _currentPrivateUser << std::endl;
   std::string encodedCmd = BinaryProtocol::encode(cmd, SIMPLE_MESSAGE);
-  std::cout << "Encoded command: " << encodedCmd << std::endl;
+  send(_socket, encodedCmd.c_str(), encodedCmd.size(), 0);
 
-  send(_socket, encodedCmd.c_str(), encodedCmd.size(), 0); 
-
+  Logging::Log("Private message sent to: " + item->text().toStdString());
   delete _currentPrivateUser;
   _currentPrivateUser = NULL;
 }
@@ -225,27 +233,24 @@ void Client::receiveMessage()
     std::string message = BinaryProtocol::decode(buffer);
 
     if (bytesReceived == 0) {
-      std::cout << "Connection closed by server" << std::endl;
+      Logging::LogError("Server closed the connection");
       _running = false;
       break;
     }
 
     if (header == LOGIN) {
       _username = message;
-      std::cout << "Logged in as " << _username << std::endl;
+      Logging::Log("Logged in as: " + _username);
       // send to serv
       std::string loginMessage = BinaryProtocol::encode("", LIST_USERS);
       send(_socket, loginMessage.c_str(), loginMessage.size(), 0);
     } else if (header == LIST_USERS) {
       _displayConnectedUsers(message, header);
-      std::cout << "Received list of connected users" << std::endl;
     } else if (header == SIMPLE_MESSAGE) {
-      std::cout << "Received simple message" << std::endl;
       QMetaObject::invokeMethod(_chatContentEdit, [this, message]() {
           _chatContentEdit->append(QString::fromStdString(message));
       }, Qt::QueuedConnection);
     } else if (header == COMMAND_MESSAGE) {
-      std::cout << "Received command message" << std::endl;
       _displayMessage(message);
     }
     delete[] _message;
@@ -255,6 +260,7 @@ void Client::receiveMessage()
 
 void Client::login()
 {
+  Logging::Log("Logging in...");
   _username = std::string(
 #ifdef _WIN32
       getenv("USERNAME")
